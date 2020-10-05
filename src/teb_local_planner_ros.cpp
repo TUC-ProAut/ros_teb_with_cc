@@ -111,12 +111,12 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
     // create the planner instance
     if (cfg_.hcp.enable_homotopy_class_planning)
     {
-      planner_ = PlannerInterfacePtr(new HomotopyClassPlanner(cfg_, &obstacles_, robot_model, visualization_, &via_points_));
+      planner_ = PlannerInterfacePtr(new HomotopyClassPlanner(cfg_, &obstacles_, &critical_corners_, robot_model, visualization_, &via_points_));
       ROS_INFO("Parallel planning in distinctive topologies enabled.");
     }
     else
     {
-      planner_ = PlannerInterfacePtr(new TebOptimalPlanner(cfg_, &obstacles_, robot_model, visualization_, &via_points_));
+      planner_ = PlannerInterfacePtr(new TebOptimalPlanner(cfg_, &obstacles_, &critical_corners_, robot_model, visualization_, &via_points_));
       ROS_INFO("Parallel planning in distinctive topologies disabled.");
     }
     
@@ -174,6 +174,9 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
         
     // setup callback for custom obstacles
     custom_obst_sub_ = nh.subscribe("obstacles", 1, &TebLocalPlannerROS::customObstacleCB, this);
+
+    // setup callback for critical corners
+    critical_corners_sub_ = nh.subscribe("critical_corners", 1, &TebLocalPlannerROS::criticalCornersCB, this);
 
     // setup callback for custom via-points
     via_points_sub_ = nh.subscribe("via_points", 1, &TebLocalPlannerROS::customViaPointsCB, this);
@@ -620,6 +623,69 @@ void TebLocalPlannerROS::updateObstacleContainerWithCustomObstacles()
   }
 }
 
+void TebLocalPlannerROS::updateCCContainerWithCriticalCorners()
+{
+  // Add custom obstacles obtained via message
+  boost::mutex::scoped_lock l(custom_cc_mutex_);
+
+  if (!critical_corners_msg_.obstacles.empty())
+  {
+    // We only use the global header to specify the obstacle coordinate system instead of individual ones
+    Eigen::Affine3d obstacle_to_map_eig;
+    try 
+    {
+      tf::StampedTransform obstacle_to_map;
+      tf_->waitForTransform(global_frame_, ros::Time(0),
+            critical_corners_msg_.header.frame_id, ros::Time(0),
+            critical_corners_msg_.header.frame_id, ros::Duration(0.5));
+      tf_->lookupTransform(global_frame_, ros::Time(0),
+          critical_corners_msg_.header.frame_id, ros::Time(0), 
+          critical_corners_msg_.header.frame_id, obstacle_to_map);
+      tf::transformTFToEigen(obstacle_to_map, obstacle_to_map_eig);
+    }
+    catch (tf::TransformException ex)
+    {
+      ROS_ERROR("%s",ex.what());
+      obstacle_to_map_eig.setIdentity();
+    }
+    
+    for (size_t i=0; i<critical_corners_msg_.obstacles.size(); ++i)
+    {
+      if (critical_corners_msg_.obstacles.at(i).polygon.points.size() == 1 && critical_corners_msg_.obstacles.at(i).radius > 0 ) // circle
+      {
+        // circle is not supported as critical corner
+        ROS_WARN("Invalid critical corner received. Circular critical corner is not supported.");
+      }
+      else if (critical_corners_msg_.obstacles.at(i).polygon.points.size() == 1 ) // point
+      {
+        Eigen::Vector3d pos( critical_corners_msg_.obstacles.at(i).polygon.points.front().x,
+                             critical_corners_msg_.obstacles.at(i).polygon.points.front().y,
+                             critical_corners_msg_.obstacles.at(i).polygon.points.front().z );
+        critical_corners_.push_back(ObstaclePtr(new PointObstacle( (obstacle_to_map_eig * pos).head(2) )));
+      }
+      else if (critical_corners_msg_.obstacles.at(i).polygon.points.size() == 2 ) // line
+      {
+        // line is not supported as critial corner 
+        ROS_WARN("Invalid critical corner received. Line critical corner is not supported.");
+      }
+      else if (critical_corners_msg_.obstacles.at(i).polygon.points.empty())
+      {
+        ROS_WARN("Invalid custom obstacle received. List of polygon vertices is empty. Skipping...");
+        continue;
+      }
+      else // polygon
+      {
+        // polygon is not supported as critial corner 
+        ROS_WARN("Invalid critical corner received. Polygon critical corner is not supported.");
+      }
+
+      // Set velocity, if obstacle is moving
+      if(!critical_corners_.empty())
+        critical_corners_.back()->setCentroidVelocity(critical_corners_msg_.obstacles[i].velocities, critical_corners_msg_.obstacles[i].orientation);
+    }
+  }
+}
+
 void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msgs::PoseStamped>& transformed_plan, double min_separation)
 {
   via_points_.clear();
@@ -1010,6 +1076,14 @@ void TebLocalPlannerROS::customObstacleCB(const costmap_converter::ObstacleArray
 {
   boost::mutex::scoped_lock l(custom_obst_mutex_);
   custom_obstacle_msg_ = *obst_msg;  
+}
+
+
+
+void TebLocalPlannerROS::criticalCornersCB(const costmap_converter::ObstacleArrayMsg::ConstPtr& cc_msg)
+{
+  boost::mutex::scoped_lock l(custom_cc_mutex_);
+  critical_corners_msg_ = *cc_msg;  
 }
 
 void TebLocalPlannerROS::customViaPointsCB(const nav_msgs::Path::ConstPtr& via_points_msg)

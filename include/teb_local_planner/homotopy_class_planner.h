@@ -120,11 +120,12 @@ public:
    * @brief Construct and initialize the HomotopyClassPlanner
    * @param cfg Const reference to the TebConfig class for internal parameters
    * @param obstacles Container storing all relevant obstacles (see Obstacle)
+   * @param critical_corners Container storing all relevant critical corners 
    * @param robot_model Shared pointer to the robot shape model used for optimization (optional)
    * @param visualization Shared pointer to the TebVisualization class (optional)
    * @param via_points Container storing via-points (optional)
    */
-  HomotopyClassPlanner(const TebConfig& cfg, ObstContainer* obstacles = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
+  HomotopyClassPlanner(const TebConfig& cfg, ObstContainer* obstacles = NULL, ObstContainer* critical_corners = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
                        TebVisualizationPtr visualization = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
 
   /**
@@ -136,11 +137,12 @@ public:
    * @brief Initialize the HomotopyClassPlanner
    * @param cfg Const reference to the TebConfig class for internal parameters
    * @param obstacles Container storing all relevant obstacles (see Obstacle)
+   * @param critical_corners Container storing all relevant critical corners 
    * @param robot_model Shared pointer to the robot shape model used for optimization (optional)
    * @param visualization Shared pointer to the TebVisualization class (optional)
    * @param via_points Container storing via-points (optional)
    */
-  void initialize(const TebConfig& cfg, ObstContainer* obstacles = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
+  void initialize(const TebConfig& cfg, ObstContainer* obstacles = NULL, ObstContainer* critical_corners = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
                   TebVisualizationPtr visualization = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
 
 
@@ -457,6 +459,12 @@ public:
   const ObstContainer* obstacles() const {return obstacles_;}
 
   /**
+   * @brief Access current critical corners container (read-only)
+   * @return const pointer to the critical corners container instance
+   */
+  const ObstContainer* critical_corners() const {return critical_corners_;}
+
+  /**
    * @brief Returns true if the planner is initialized
    */
   bool isInitialized() const {return initialized_;}
@@ -547,6 +555,7 @@ protected:
   // external objects (store weak pointers)
   const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
   ObstContainer* obstacles_; //!< Store obstacles that are relevant for planning
+  ObstContainer* critical_corners_; //!< Store obstacles that are relevant for planning
   const ViaPointContainer* via_points_; //!< Store the current list of via-points
 
   // internal objects (memory management owned)

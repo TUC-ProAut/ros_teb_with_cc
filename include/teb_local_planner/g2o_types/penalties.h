@@ -47,6 +47,27 @@ namespace teb_local_planner
 {
 
 /**
+ * @brief Linear penalty function regarding \c dist and \c vel at critical corners
+ * @param dist The first scalar 
+ * @param vel The second scalar 
+ * @param m parameter for weighting the two values dist and vel
+ * @param epsilon safty margin (move bound to the interior of the interval)
+ * @see penaltyBoundToIntervalDerivative
+ * @return Penalty / cost value that is nonzero if the constraint is not satisfied
+ */
+inline double penaltyBoundCC(const double& dist,const double& vel, const double& m,const double& epsilon)
+{
+  if (vel > dist*m + epsilon)
+  {
+    return (vel - dist*m - epsilon);
+  }
+  else
+  {
+    return 0;
+  }
+}
+
+/**
  * @brief Linear penalty function for bounding \c var to the interval \f$ -a < var < a \f$
  * @param var The scalar that should be bounded
  * @param a lower and upper absolute bound
@@ -113,6 +134,31 @@ inline double penaltyBoundFromBelow(const double& var, const double& a,const dou
   else
   {
     return (-var + (a+epsilon));
+  }
+}
+
+/**
+ * @brief Derivative of the Linear penalty function regarding \c dist and \c vel at critical corners
+ * @param dist The first scalar 
+ * @param vel The second scalar 
+ * @param m parameter for weighting the two values dist and vel
+ * @param epsilon safty margin (move bound to the interior of the interval)
+ * @see penaltyBoundToIntervalDerivative
+ * @return Penalty / cost value that is nonzero if the constraint is not satisfied
+ */
+inline double penaltyBoundCCDerivative(const double& dist,const double& vel, const double& m,const double& epsilon)
+{
+  if (vel > dist*m + epsilon)
+  {
+    return 1;
+  }
+  if (vel < dist*m - epsilon)
+  {
+    return -1;
+  }
+  else
+  {
+    return 0;
   }
 }
 

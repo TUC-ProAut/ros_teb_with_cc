@@ -49,6 +49,7 @@
 #include <teb_local_planner/g2o_types/edge_dynamic_obstacle.h>
 #include <teb_local_planner/g2o_types/edge_via_point.h>
 #include <teb_local_planner/g2o_types/edge_prefer_rotdir.h>
+#include <teb_local_planner/g2o_types/edge_critical_corners.h>
 
 #include <memory>
 #include <limits>
@@ -59,14 +60,14 @@ namespace teb_local_planner
 
 // ============== Implementation ===================
 
-TebOptimalPlanner::TebOptimalPlanner() : cfg_(NULL), obstacles_(NULL), via_points_(NULL), cost_(HUGE_VAL), prefer_rotdir_(RotType::none),
+TebOptimalPlanner::TebOptimalPlanner() : cfg_(NULL), obstacles_(NULL), critical_corners_(NULL), via_points_(NULL), cost_(HUGE_VAL), prefer_rotdir_(RotType::none),
                                          robot_model_(new PointRobotFootprint()), initialized_(false), optimized_(false)
 {    
 }
   
-TebOptimalPlanner::TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
+TebOptimalPlanner::TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles, ObstContainer* critical_corners, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
 {    
-  initialize(cfg, obstacles, robot_model, visual, via_points);
+  initialize(cfg, obstacles, critical_corners, robot_model, visual, via_points);
 }
 
 TebOptimalPlanner::~TebOptimalPlanner()
@@ -84,13 +85,14 @@ void TebOptimalPlanner::updateRobotModel(RobotFootprintModelPtr robot_model)
   robot_model_ = robot_model;
 }
 
-void TebOptimalPlanner::initialize(const TebConfig& cfg, ObstContainer* obstacles, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
+void TebOptimalPlanner::initialize(const TebConfig& cfg, ObstContainer* obstacles, ObstContainer* critical_corners, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
 {    
   // init optimizer (set solver and block ordering settings)
   optimizer_ = initOptimizer();
   
   cfg_ = &cfg;
   obstacles_ = obstacles;
+  critical_corners_ = critical_corners;
   robot_model_ = robot_model;
   via_points_ = via_points;
   cost_ = HUGE_VAL;
@@ -157,6 +159,7 @@ void TebOptimalPlanner::registerG2OTypes()
   factory->registerType("EDGE_DYNAMIC_OBSTACLE", new g2o::HyperGraphElementCreator<EdgeDynamicObstacle>);
   factory->registerType("EDGE_VIA_POINT", new g2o::HyperGraphElementCreator<EdgeViaPoint>);
   factory->registerType("EDGE_PREFER_ROTDIR", new g2o::HyperGraphElementCreator<EdgePreferRotDir>);
+  factory->registerType("EDGE_CRITICAL_CORNERS", new g2o::HyperGraphElementCreator<EdgeCriticalCorners>);
   return;
 }
 
@@ -364,6 +367,8 @@ bool TebOptimalPlanner::buildGraph(double weight_multiplier)
     AddEdgesKinematicsCarlike(); // we have a carlike robot since the turning radius is bounded from below.
 
   AddEdgesPreferRotDir();
+
+  AddEdgesCriticalCorners();
 
   if (cfg_->optim.weight_velocity_obstacle_ratio > 0)
     AddEdgesVelocityObstacleRatio();
@@ -773,6 +778,59 @@ void TebOptimalPlanner::AddEdgesVelocity()
     
   }
 }
+
+
+void TebOptimalPlanner::AddEdgesCriticalCorners()
+{
+
+  if ( cfg_->optim.weight_cc_dist==0 && cfg_->optim.weight_cc_vel==0)
+    return; // if weight equals zero skip adding edges!
+
+  int n = teb_.sizePoses();
+  Eigen::Matrix<double,1,1> information;
+  information.fill(0);
+  information(0,0) = cfg_->optim.weight_cc_dist;
+  ROS_INFO_STREAM("weight: " << cfg_->optim.weight_cc_dist);
+  //information(1,1) = cfg_->optim.weight_cc_vel;
+
+  for (int i=0; i < n - 1; ++i)
+  {
+    double right_min_dist = std::numeric_limits<double>::max();
+    
+    std::vector<Obstacle*> relevant_critical_corners;
+    
+    const Eigen::Vector2d pose_orient = teb_.Pose(i).orientationUnitVec();
+    
+    // iterate obstacles
+    for (const ObstaclePtr& cc : *critical_corners_)
+    {
+    
+      // calculate distance to robot model
+      double dist = robot_model_->calculateDistance(teb_.Pose(i), cc.get());
+      
+      // force considering obstacle if really close to the current pose
+      if (dist < cfg_->obstacles.min_obstacle_dist*cfg_->obstacles.obstacle_association_force_inclusion_factor)
+        {
+            relevant_critical_corners.push_back(cc.get());
+            continue;
+        }
+    }  
+
+    for (const Obstacle* cc : relevant_critical_corners)
+    {
+      EdgeCriticalCorners* cc_edge = new EdgeCriticalCorners;
+      cc_edge->setVertex(0,teb_.PoseVertex(i));
+      cc_edge->setVertex(1,teb_.PoseVertex(i+1));
+      cc_edge->setVertex(2,teb_.TimeDiffVertex(i));
+      cc_edge->setInformation(information);
+      cc_edge->setParameters(*cfg_, robot_model_.get(), cc);
+      optimizer_->addEdge(cc_edge);
+    } 
+
+  }
+  
+}
+
 
 void TebOptimalPlanner::AddEdgesAcceleration()
 {

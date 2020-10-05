@@ -249,6 +249,12 @@ protected:
    */
   void updateObstacleContainerWithCustomObstacles();
 
+  /**
+   * @brief Update internal critical corners vector based on custom messages received via subscriber
+   * @remarks All previous obstacles are NOT cleared. Call this method after other update methods.
+   * @sa updateObstacleContainerWithCostmap, updateObstacleContainerWithCostmapConverter
+   */
+  void updateCCContainerWithCriticalCorners();
 
   /**
    * @brief Update internal via-point container based on the current reference plan
@@ -274,6 +280,12 @@ protected:
     * @param obst_msg pointer to the message containing a list of polygon shaped obstacles
     */
   void customObstacleCB(const costmap_converter::ObstacleArrayMsg::ConstPtr& obst_msg);
+
+   /**
+    * @brief Callback for critical corners 
+    * @param cc_msg pointer to the message containing a list of polygon shaped obstacles
+    */
+  void criticalCornersCB(const costmap_converter::ObstacleArrayMsg::ConstPtr& cc_msg);
   
    /**
     * @brief Callback for custom via-points
@@ -401,6 +413,7 @@ private:
   // internal objects (memory management owned)
   PlannerInterfacePtr planner_; //!< Instance of the underlying optimal planner class
   ObstContainer obstacles_; //!< Obstacle vector that should be considered during local trajectory optimization
+  ObstContainer critical_corners_; //!< Critical Corners vector that should be considered during local trajectory optimization
   ViaPointContainer via_points_; //!< Container of via-points that should be considered during local trajectory optimization
   TebVisualizationPtr visualization_; //!< Instance of the visualization class (local/global plan, obstacles, ...)
   boost::shared_ptr<base_local_planner::CostmapModel> costmap_model_;  
@@ -416,8 +429,11 @@ private:
 
   boost::shared_ptr< dynamic_reconfigure::Server<TebLocalPlannerReconfigureConfig> > dynamic_recfg_; //!< Dynamic reconfigure server to allow config modifications at runtime
   ros::Subscriber custom_obst_sub_; //!< Subscriber for custom obstacles received via a ObstacleMsg.
+  ros::Subscriber critical_corners_sub_; //!< Subscriber for critical corners received via a ObstacleMsg.
   boost::mutex custom_obst_mutex_; //!< Mutex that locks the obstacle array (multi-threaded)
+  boost::mutex custom_cc_mutex_; //!< Mutex that locks the critical corners array (multi-threaded)
   costmap_converter::ObstacleArrayMsg custom_obstacle_msg_; //!< Copy of the most recent obstacle message
+  costmap_converter::ObstacleArrayMsg critical_corners_msg_; //
 
   ros::Subscriber via_points_sub_; //!< Subscriber for custom via-points received via a Path msg.
   bool custom_via_points_active_; //!< Keep track whether valid via-points have been received from via_points_sub_
