@@ -69,6 +69,7 @@
 #include <teb_local_planner/g2o_types/edge_dynamic_obstacle.h>
 #include <teb_local_planner/g2o_types/edge_via_point.h>
 #include <teb_local_planner/g2o_types/edge_prefer_rotdir.h>
+#include <teb_local_planner/g2o_types/edge_critical_corners.h>
 
 // messages
 #include <nav_msgs/Path.h>
@@ -125,7 +126,7 @@ public:
    * @param visual Shared pointer to the TebVisualization class (optional)
    * @param via_points Container storing via-points (optional)
    */
-  TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
+  TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles = NULL, ObstContainer* critical_corners = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
                     TebVisualizationPtr visual = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
   
   /**
@@ -141,7 +142,7 @@ public:
     * @param visual Shared pointer to the TebVisualization class (optional)
     * @param via_points Container storing via-points (optional)
     */
-  void initialize(const TebConfig& cfg, ObstContainer* obstacles = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
+  void initialize(const TebConfig& cfg, ObstContainer* obstacles = NULL, ObstContainer* critical_corners = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
                   TebVisualizationPtr visual = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
   
   
@@ -288,6 +289,14 @@ public:
    */
   void setObstVector(ObstContainer* obst_vector) {obstacles_ = obst_vector;}
   
+  /**
+   * @brief Assign a new set of critical corneres
+   * @param cc_vector pointer to a critical corners container
+   * @remarks This method overrids the obstacle container optinally assigned in the constructor.
+   */
+  void setCritCornVector(ObstContainer* cc_vector) {critical_corners_ = cc_vector;}
+
+
   /**
    * @brief Access the internal obstacle container.
    * @return Const reference to the obstacle container
@@ -664,6 +673,15 @@ protected:
    * @see optimizeGraph
    */
   void AddEdgesPreferRotDir(); 
+
+  /**
+   * @brief Add all edges (local cost functions) related to keeping a distance from critical corners
+   * @warning do not combine with AddEdgesInflatedObstacles
+   * @see EdgeCriticalCorners
+   * @see buildGraph
+   * @see optimizeGraph
+   */
+  void AddEdgesCriticalCorners();
   
   //@}
   
@@ -678,6 +696,7 @@ protected:
   // external objects (store weak pointers)
   const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
   ObstContainer* obstacles_; //!< Store obstacles that are relevant for planning
+  ObstContainer* critical_corners_; //!< Store Critical corners that are relevant for planning
   const ViaPointContainer* via_points_; //!< Store via points for planning
   
   double cost_; //!< Store cost value of the current hyper-graph

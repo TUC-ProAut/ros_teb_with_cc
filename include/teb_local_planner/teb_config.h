@@ -129,6 +129,8 @@ public:
     std::string costmap_converter_plugin; //!< Define a plugin name of the costmap_converter package (costmap cells are converted to points/lines/polygons)
     bool costmap_converter_spin_thread; //!< If \c true, the costmap converter invokes its callback queue in a different thread
     int costmap_converter_rate; //!< The rate that defines how often the costmap_converter plugin processes the current costmap (the value should not be much higher than the costmap update rate)
+    double critical_corner_sensitivity; //!< The sensititvity between the distance and the velocity at a critical corner 
+    double critical_corner_epsilon; //!< The epsilon for penalty function of critical corners
   } obstacles; //!< Obstacle related parameters
 
 
@@ -160,7 +162,8 @@ public:
     double weight_dynamic_obstacle_inflation; //!< Optimization weight for the inflation penalty of dynamic obstacles (should be small)
     double weight_viapoint; //!< Optimization weight for minimizing the distance to via-points
     double weight_prefer_rotdir; //!< Optimization weight for preferring a specific turning direction (-> currently only activated if an oscillation is detected, see 'oscillation_recovery'
-
+    double weight_cc_vel; //!< Optimization weight for velocity at critical corners
+    double weight_cc_dist; //!< Optimization weight for distance at critical corners
     double weight_adapt_factor; //!< Some special weights (currently 'weight_obstacle') are repeatedly scaled by this factor in each outer TEB iteration (weight_new = weight_old*factor); Increasing weights iteratively instead of setting a huge value a-priori leads to better numerical conditions of the underlying optimization problem.
     double obstacle_cost_exponent; //!< Exponent for nonlinear obstacle cost (cost = linear_cost * obstacle_cost_exponent). Set to 1 to disable nonlinear cost (default)
   } optim; //!< Optimization related parameters
@@ -287,6 +290,8 @@ public:
     obstacles.costmap_converter_plugin = "";
     obstacles.costmap_converter_spin_thread = true;
     obstacles.costmap_converter_rate = 5;
+    obstacles.critical_corner_sensitivity = 0.1;
+    obstacles.critical_corner_epsilon = 0.2;
 
     // Optimization
 
@@ -312,6 +317,8 @@ public:
     optim.weight_dynamic_obstacle_inflation = 0.1;
     optim.weight_viapoint = 1;
     optim.weight_prefer_rotdir = 50;
+    optim.weight_cc_vel = 50;
+    optim.weight_cc_dist = 50;
 
     optim.weight_adapt_factor = 2.0;
     optim.obstacle_cost_exponent = 1.0;

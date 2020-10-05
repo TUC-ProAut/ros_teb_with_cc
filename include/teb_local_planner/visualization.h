@@ -155,6 +155,13 @@ public:
   void publishObstacles(const ObstContainer& obstacles) const;
 
   /**
+   * @brief Publish critical corners positions to the ros topic \e ../../teb_markers
+   * @todo Move filling of the marker message to polygon class in order to avoid checking types.
+   * @param critical corners Obstacle container
+   */
+  void publishCriticalCorners(const ObstContainer& critical_corners) const;
+
+  /**
    * @brief Publish via-points to the ros topic \e ../../teb_markers
    * @param via_points via-point container
    */
