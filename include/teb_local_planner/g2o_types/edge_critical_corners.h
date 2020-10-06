@@ -103,10 +103,7 @@ public:
         double radius =  dist/(2*sin(angle_diff/2));
         dist = fabs( angle_diff * radius ); // actual arg length!
     }
-    double vel = dist / deltaT->estimate();
-    
-//     vel *= g2o::sign(deltaS[0]*cos(conf1->theta()) + deltaS[1]*sin(conf1->theta())); // consider direction
-    vel *= fast_sigmoid( 100 * (deltaS.x()*cos(conf1->theta()) + deltaS.y()*sin(conf1->theta())) );
+    double vel = dist / deltaT->estimate();  
 
     // Original obstacle cost.
     _error[0] = penaltyBoundCC(dist1, vel, cfg_->obstacles.critical_corner_sensitivity, cfg_->obstacles.critical_corner_epsilon);
@@ -116,7 +113,7 @@ public:
 
     //_error[1] = penaltyBoundCC(vel, mean_dist, cfg_->obstacles.critical_corner_sensitivity, cfg_->obstacles.critical_corner_epsilon);
 
-    ROS_ASSERT_MSG(std::isfinite(_error[0]) && std::isfinite(_error[1]), "EdgeCriticalCorners::computeError() _error[0]=%f _error[1]=%f\n",_error[0],_error[1]);
+    ROS_ASSERT_MSG(std::isfinite(_error[0]), "EdgeCriticalCorners::computeError() _error[0]=%f \n",_error[0]);
   }
 
 #ifdef USE_ANALYTIC_JACOBI

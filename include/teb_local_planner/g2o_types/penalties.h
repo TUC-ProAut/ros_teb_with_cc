@@ -59,7 +59,7 @@ inline double penaltyBoundCC(const double& dist,const double& vel, const double&
 {
   if (vel > dist*m + epsilon)
   {
-    return (vel - dist*m - epsilon);
+    return (vel - dist*m)*(vel - dist*m)/dist;
   }
   else
   {
@@ -137,30 +137,7 @@ inline double penaltyBoundFromBelow(const double& var, const double& a,const dou
   }
 }
 
-/**
- * @brief Derivative of the Linear penalty function regarding \c dist and \c vel at critical corners
- * @param dist The first scalar 
- * @param vel The second scalar 
- * @param m parameter for weighting the two values dist and vel
- * @param epsilon safty margin (move bound to the interior of the interval)
- * @see penaltyBoundToIntervalDerivative
- * @return Penalty / cost value that is nonzero if the constraint is not satisfied
- */
-inline double penaltyBoundCCDerivative(const double& dist,const double& vel, const double& m,const double& epsilon)
-{
-  if (vel > dist*m + epsilon)
-  {
-    return 1;
-  }
-  if (vel < dist*m - epsilon)
-  {
-    return -1;
-  }
-  else
-  {
-    return 0;
-  }
-}
+
 
 /**
  * @brief Derivative of the linear penalty function for bounding \c var to the interval \f$ -a < var < a \f$
