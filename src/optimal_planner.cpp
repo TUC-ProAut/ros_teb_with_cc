@@ -777,14 +777,13 @@ void TebOptimalPlanner::AddEdgesVelocity()
 void TebOptimalPlanner::AddEdgesCriticalCorners()
 {
 
-  if ( cfg_->optim.weight_cc_dist==0 && cfg_->optim.weight_cc_vel==0)
+  if ( cfg_->optim.weight_cc==0 )
     return; // if weight equals zero skip adding edges!
 
   int n = teb_.sizePoses();
-  Eigen::Matrix<double,2,2> information;
+  Eigen::Matrix<double,1,1> information;
   information.fill(0);
-  information(0,0) = cfg_->optim.weight_cc_vel;
-  information(1,1) = cfg_->optim.weight_cc_dist;
+  information(0,0) = cfg_->optim.weight_cc;
 
   for (int i=0; i < n - 1; ++i)
   {
@@ -802,7 +801,7 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
       double dist = robot_model_->calculateDistance(teb_.Pose(i), cc.get());
       
       // force considering obstacle if really close to the current pose
-      if (dist < cfg_->obstacles.min_obstacle_dist*cfg_->obstacles.obstacle_association_force_inclusion_factor)
+      if (dist < cfg_->obstacles.critical_corner_min_dist*cfg_->obstacles.obstacle_association_force_inclusion_factor)
         {
           relevant_critical_corners.push_back(cc.get());
           continue;

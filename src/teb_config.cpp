@@ -101,8 +101,8 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
   nh.param("obstacle_association_cutoff_factor", obstacles.obstacle_association_cutoff_factor, obstacles.obstacle_association_cutoff_factor);
   nh.param("costmap_converter_plugin", obstacles.costmap_converter_plugin, obstacles.costmap_converter_plugin);
   nh.param("costmap_converter_spin_thread", obstacles.costmap_converter_spin_thread, obstacles.costmap_converter_spin_thread);
-  nh.param("critical_corner_vel_coeff",obstacles.critical_corner_vel_coeff, obstacles.critical_corner_vel_coeff);
-  nh.param("critical_corner_dist_coeff",obstacles.critical_corner_dist_coeff, obstacles.critical_corner_dist_coeff);
+  nh.param("critical_corner_min_dist",obstacles.critical_corner_min_dist, obstacles.critical_corner_min_dist);
+  nh.param("critical_corner_max_vel",obstacles.critical_corner_max_vel, obstacles.critical_corner_max_vel);
   
   // Optimization
   nh.param("no_inner_iterations", optim.no_inner_iterations, optim.no_inner_iterations);
@@ -129,8 +129,7 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
   nh.param("weight_prefer_rotdir", optim.weight_prefer_rotdir, optim.weight_prefer_rotdir);
   nh.param("weight_adapt_factor", optim.weight_adapt_factor, optim.weight_adapt_factor);
   nh.param("obstacle_cost_exponent", optim.obstacle_cost_exponent, optim.obstacle_cost_exponent);
-  nh.param("weight_cc_dist",optim.weight_cc_dist,optim.weight_cc_dist);
-  nh.param("weight_cc_dist",optim.weight_cc_dist,optim.weight_cc_vel);
+  nh.param("weight_cc",optim.weight_cc,optim.weight_cc);
 
   // Homotopy Class Planner
   nh.param("enable_homotopy_class_planning", hcp.enable_homotopy_class_planning, hcp.enable_homotopy_class_planning); 
@@ -218,8 +217,8 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
   obstacles.obstacle_association_cutoff_factor = cfg.obstacle_association_cutoff_factor;
   obstacles.costmap_obstacles_behind_robot_dist = cfg.costmap_obstacles_behind_robot_dist;
   obstacles.obstacle_poses_affected = cfg.obstacle_poses_affected;
-  obstacles.critical_corner_vel_coeff = cfg.critical_corner_vel_coeff;
-  obstacles.critical_corner_dist_coeff = cfg.critical_corner_dist_coeff;
+  obstacles.critical_corner_min_dist = cfg.critical_corner_min_dist;
+  obstacles.critical_corner_max_vel = cfg.critical_corner_max_vel;
 
   
   // Optimization
@@ -246,8 +245,7 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
   optim.weight_viapoint = cfg.weight_viapoint;
   optim.weight_adapt_factor = cfg.weight_adapt_factor;
   optim.obstacle_cost_exponent = cfg.obstacle_cost_exponent;
-  optim.weight_cc_dist = cfg.weight_cc_dist;
-  optim.weight_cc_vel = cfg.weight_cc_vel;
+  optim.weight_cc = cfg.weight_cc;
     
   
   // Homotopy Class Planner
