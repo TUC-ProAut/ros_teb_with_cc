@@ -346,7 +346,7 @@ void TebVisualization::publishCriticalCorners(const ObstContainer& critical_corn
     marker.header.stamp = ros::Time::now();
     marker.ns = "CriticalCorners";
     marker.id = 0;
-    marker.type = visualization_msgs::Marker::POINTS;
+    marker.type = visualization_msgs::Marker::LINE_LIST;
     marker.action = visualization_msgs::Marker::ADD;
     marker.lifetime = ros::Duration(2.0);
     
@@ -356,40 +356,26 @@ void TebVisualization::publishCriticalCorners(const ObstContainer& critical_corn
       if (!pobst)
         continue;
 
-      if (cfg_->hcp.visualize_with_time_as_z_axis_scale < 0.001)
-      {
-        geometry_msgs::Point point;
-        point.x = pobst->x();
-        point.y = pobst->y();
-        point.z = 0;
-        marker.points.push_back(point);
-      }
-      else // Spatiotemporally point obstacles become a line
-      {
-        marker.type = visualization_msgs::Marker::LINE_LIST;
-        geometry_msgs::Point start;
-        start.x = pobst->x();
-        start.y = pobst->y();
-        start.z = 0;
-        marker.points.push_back(start);
+      geometry_msgs::Point start;
+      start.x = pobst->x();
+      start.y = pobst->y();
+      start.z = 0;
+      marker.points.push_back(start);
 
-        geometry_msgs::Point end;
-        double t = 20;
-        Eigen::Vector2d pred;
-        pobst->predictCentroidConstantVelocity(t, pred);
-        end.x = pred[0];
-        end.y = pred[1];
-        end.z = cfg_->hcp.visualize_with_time_as_z_axis_scale*t;
-        marker.points.push_back(end);
-      }
+      geometry_msgs::Point end;
+      end.x = pobst->x();
+      end.y = pobst->y();
+      end.z = 1;
+      marker.points.push_back(end);
+      
     }
     
     marker.scale.x = 0.1;
     marker.scale.y = 0.1;
     marker.color.a = 1.0;
     marker.color.r = 0.0;
-    marker.color.g = 1.0;
-    marker.color.b = 0.0;
+    marker.color.g = 0.0;
+    marker.color.b = 1.0;
 
     teb_marker_pub_.publish( marker );
   }

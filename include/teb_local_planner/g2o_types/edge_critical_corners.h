@@ -68,7 +68,7 @@ namespace teb_local_planner
  * @see TebOptimalPlanner::AddEdgesObstacles, TebOptimalPlanner::EdgeInflatedObstacle
  * @remarks Do not forget to call setTebConfig() and setObstacle()
  */     
-class EdgeCriticalCorners : public BaseTebUnaryEdge<1, const Obstacle*, VertexPose>
+class EdgeCriticalCorners : public BaseTebUnaryEdge<2, const Obstacle*, VertexPose>
 {
 public:
     
@@ -106,61 +106,16 @@ public:
     double vel = dist / deltaT->estimate();  
 
     // Original obstacle cost.
-    _error[0] = penaltyBoundCC(dist1, vel, cfg_->obstacles.critical_corner_sensitivity, cfg_->obstacles.critical_corner_epsilon);
+    //_error[0] = penaltyBoundCC(dist1, vel, cfg_->obstacles.critical_corner_vel_coeff, cfg_->optim.penalty_epsilon);
+    _error[0] = std::pow(penaltyBoundFromAbove(vel, dist1*cfg_->obstacles.critical_corner_vel_coeff, cfg_->optim.penalty_epsilon),2);
+    _error[1] = std::pow(penaltyBoundFromBelow(dist1, vel*cfg_->obstacles.critical_corner_dist_coeff, cfg_->optim.penalty_epsilon),2);
     //_error[0] = penaltyBoundFromBelow(dist1, cfg_->obstacles.min_obstacle_dist, cfg_->optim.penalty_epsilon);
     
-    ROS_INFO_STREAM("Error: " << _error[0]);
-
-    //_error[1] = penaltyBoundCC(vel, mean_dist, cfg_->obstacles.critical_corner_sensitivity, cfg_->obstacles.critical_corner_epsilon);
+    //_error[1] = penaltyBoundCC(vel, mean_dist, cfg_->obstacles.critical_corner_vel_coeff, cfg_->obstacles.critical_corner_epsilon);
 
     ROS_ASSERT_MSG(std::isfinite(_error[0]), "EdgeCriticalCorners::computeError() _error[0]=%f \n",_error[0]);
   }
 
-#ifdef USE_ANALYTIC_JACOBI
-#if 0
-
-  /**
-   * @brief Jacobi matrix of the cost function specified in computeError().
-   */
-  void linearizeOplus()
-  {
-    ROS_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgePointObstacle()");
-    const VertexPose* bandpt = static_cast<const VertexPose*>(_vertices[0]);
-    
-    Eigen::Vector2d deltaS = *_measurement - bandpt->position(); 
-    double angdiff = atan2(deltaS[1],deltaS[0])-bandpt->theta();
-    
-    double dist_squared = deltaS.squaredNorm();
-    double dist = sqrt(dist_squared);
-    
-    double aux0 = sin(angdiff);
-    double dev_left_border = penaltyBoundFromBelowDerivative(dist*fabs(aux0),cfg_->obstacles.min_obstacle_dist,cfg_->optim.penalty_epsilon);
-
-    if (dev_left_border==0)
-    {
-      _jacobianOplusXi( 0 , 0 ) = 0;
-      _jacobianOplusXi( 0 , 1 ) = 0;
-      _jacobianOplusXi( 0 , 2 ) = 0;
-      return;
-    }
-    
-    double aux1 = -fabs(aux0) / dist;
-    double dev_norm_x = deltaS[0]*aux1;
-    double dev_norm_y = deltaS[1]*aux1;
-    
-    double aux2 = cos(angdiff) * g2o::sign(aux0);
-    double aux3 = aux2 / dist_squared;
-    double dev_proj_x = aux3 * deltaS[1] * dist;
-    double dev_proj_y = -aux3 * deltaS[0] * dist;
-    double dev_proj_angle = -aux2;
-    
-    _jacobianOplusXi( 0 , 0 ) = dev_left_border * ( dev_norm_x + dev_proj_x );
-    _jacobianOplusXi( 0 , 1 ) = dev_left_border * ( dev_norm_y + dev_proj_y );
-    _jacobianOplusXi( 0 , 2 ) = dev_left_border * dev_proj_angle;
-  }
-#endif
-#endif
-  
   /**
    * @brief Set pointer to associated obstacle for the underlying cost function 
    * @param obstacle 2D position vector containing the position of the obstacle

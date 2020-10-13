@@ -136,8 +136,8 @@ public:
     double obstacle_proximity_ratio_max_vel; //!< Ratio of the maximum velocities used as an upper bound when reducing the speed due to the proximity to a static obstacles
     double obstacle_proximity_lower_bound; //!< Distance to a static obstacle for which the velocity should be lower
     double obstacle_proximity_upper_bound; //!< Distance to a static obstacle for which the velocity should be higher
-    double critical_corner_sensitivity; //!< The sensititvity between the distance and the velocity at a critical corner 
-    double critical_corner_epsilon; //!< The epsilon for penalty function of critical corners
+    double critical_corner_vel_coeff; //!< The sensititvity between the distance and the velocity at a critical corner 
+    double critical_corner_dist_coeff;
   } obstacles; //!< Obstacle related parameters
 
 
@@ -308,8 +308,9 @@ public:
     obstacles.obstacle_proximity_ratio_max_vel = 1;
     obstacles.obstacle_proximity_lower_bound = 0;
     obstacles.obstacle_proximity_upper_bound = 0.5;
-    obstacles.critical_corner_sensitivity = 0.1;
-    obstacles.critical_corner_epsilon = 0.2;
+    obstacles.critical_corner_vel_coeff = 0.1;
+    obstacles.critical_corner_dist_coeff = 0.1;
+
     // Optimization
 
     optim.no_inner_iterations = 5;
@@ -335,8 +336,8 @@ public:
     optim.weight_velocity_obstacle_ratio = 0;
     optim.weight_viapoint = 1;
     optim.weight_prefer_rotdir = 50;
-    optim.weight_cc_vel = 50;
-    optim.weight_cc_dist = 50;
+    optim.weight_cc_dist = 1;
+    optim.weight_cc_vel = 1;
 
     optim.weight_adapt_factor = 2.0;
     optim.obstacle_cost_exponent = 1.0;
