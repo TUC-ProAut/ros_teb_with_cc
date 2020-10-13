@@ -68,7 +68,7 @@ namespace teb_local_planner
  * @see TebOptimalPlanner::AddEdgesObstacles, TebOptimalPlanner::EdgeInflatedObstacle
  * @remarks Do not forget to call setTebConfig() and setObstacle()
  */     
-class EdgeCriticalCorners : public BaseTebUnaryEdge<2, const Obstacle*, VertexPose>
+class EdgeCriticalCorners : public BaseTebUnaryEdge<1, const Obstacle*, VertexPose>
 {
 public:
     
@@ -107,11 +107,27 @@ public:
 
     // Original obstacle cost.
     //_error[0] = penaltyBoundCC(dist1, vel, cfg_->obstacles.critical_corner_vel_coeff, cfg_->optim.penalty_epsilon);
-    _error[0] = std::pow(penaltyBoundFromAbove(vel, dist1*cfg_->obstacles.critical_corner_vel_coeff, cfg_->optim.penalty_epsilon),2);
-    _error[1] = std::pow(penaltyBoundFromBelow(dist1, vel*cfg_->obstacles.critical_corner_dist_coeff, cfg_->optim.penalty_epsilon),2);
     //_error[0] = penaltyBoundFromBelow(dist1, cfg_->obstacles.min_obstacle_dist, cfg_->optim.penalty_epsilon);
-    
     //_error[1] = penaltyBoundCC(vel, mean_dist, cfg_->obstacles.critical_corner_vel_coeff, cfg_->obstacles.critical_corner_epsilon);
+
+    //_error[0] = std::pow(penaltyBoundFromAbove(vel, dist1*cfg_->obstacles.critical_corner_vel_coeff, cfg_->optim.penalty_epsilon),2);
+    //_error[1] = std::pow(penaltyBoundFromBelow(dist1, vel*cfg_->obstacles.critical_corner_dist_coeff, cfg_->optim.penalty_epsilon),2);
+    
+    // check rel. distance (<1: closer then min_dist; ==1: at min_dist; >1: further away)
+    double scale = 0;
+    if (cfg_->obstacles.critical_corner_min_dist > 0)
+        scale = dist1 / cfg_->obstacles.critical_corner_min_dist;
+
+    // allow quadratic increase of velocity, if far away
+    // (otherwise: within dist_min max. velocity is linear decreased)
+    if (scale > 1)
+        scale = std::pow(scale, 2);
+        //scale = (1 + std::pow(scale, 2)) / 2;
+    
+    // calculate max. allowed velocity
+    double max_vel = cfg_->obstacles.critical_corner_max_vel * scale;
+
+    _error[0] = penaltyBoundFromAbove(vel, max_vel, cfg_->optim.penalty_epsilon);
 
     ROS_ASSERT_MSG(std::isfinite(_error[0]), "EdgeCriticalCorners::computeError() _error[0]=%f \n",_error[0]);
   }

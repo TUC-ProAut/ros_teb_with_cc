@@ -136,8 +136,8 @@ public:
     double obstacle_proximity_ratio_max_vel; //!< Ratio of the maximum velocities used as an upper bound when reducing the speed due to the proximity to a static obstacles
     double obstacle_proximity_lower_bound; //!< Distance to a static obstacle for which the velocity should be lower
     double obstacle_proximity_upper_bound; //!< Distance to a static obstacle for which the velocity should be higher
-    double critical_corner_vel_coeff; //!< The sensititvity between the distance and the velocity at a critical corner 
-    double critical_corner_dist_coeff;
+    double critical_corner_min_dist; //! distance within the corner is in effect (reducing the max. velocity)
+    double critical_corner_max_vel; //!< Max. allowed velocity if robot is [critical_corner_min_dist] m away. The velocity will be less if the robot gets closer to the critical point.
   } obstacles; //!< Obstacle related parameters
 
 
@@ -170,8 +170,7 @@ public:
     double weight_velocity_obstacle_ratio; //!< Optimization weight for satisfying a maximum allowed velocity with respect to the distance to a static obstacle
     double weight_viapoint; //!< Optimization weight for minimizing the distance to via-points
     double weight_prefer_rotdir; //!< Optimization weight for preferring a specific turning direction (-> currently only activated if an oscillation is detected, see 'oscillation_recovery'
-    double weight_cc_vel; //!< Optimization weight for velocity at critical corners
-    double weight_cc_dist; //!< Optimization weight for distance at critical corners
+    double weight_cc; //!< Optimization weight for max. velocity at critical corners
     double weight_adapt_factor; //!< Some special weights (currently 'weight_obstacle') are repeatedly scaled by this factor in each outer TEB iteration (weight_new = weight_old*factor); Increasing weights iteratively instead of setting a huge value a-priori leads to better numerical conditions of the underlying optimization problem.
     double obstacle_cost_exponent; //!< Exponent for nonlinear obstacle cost (cost = linear_cost * obstacle_cost_exponent). Set to 1 to disable nonlinear cost (default)
   } optim; //!< Optimization related parameters
@@ -308,8 +307,8 @@ public:
     obstacles.obstacle_proximity_ratio_max_vel = 1;
     obstacles.obstacle_proximity_lower_bound = 0;
     obstacles.obstacle_proximity_upper_bound = 0.5;
-    obstacles.critical_corner_vel_coeff = 0.1;
-    obstacles.critical_corner_dist_coeff = 0.1;
+    obstacles.critical_corner_min_dist = 1;
+    obstacles.critical_corner_max_vel = 0.5;
 
     // Optimization
 
@@ -336,8 +335,7 @@ public:
     optim.weight_velocity_obstacle_ratio = 0;
     optim.weight_viapoint = 1;
     optim.weight_prefer_rotdir = 50;
-    optim.weight_cc_dist = 1;
-    optim.weight_cc_vel = 1;
+    optim.weight_cc = 1;
 
     optim.weight_adapt_factor = 2.0;
     optim.obstacle_cost_exponent = 1.0;
