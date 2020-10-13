@@ -129,7 +129,8 @@ public:
     std::string costmap_converter_plugin; //!< Define a plugin name of the costmap_converter package (costmap cells are converted to points/lines/polygons)
     bool costmap_converter_spin_thread; //!< If \c true, the costmap converter invokes its callback queue in a different thread
     int costmap_converter_rate; //!< The rate that defines how often the costmap_converter plugin processes the current costmap (the value should not be much higher than the costmap update rate)
-    double critical_corner_sensitivity; //!< The sensititvity between the distance and the velocity at a critical corner 
+    double critical_corner_vel_coeff; //!< The sensititvity between the distance and the velocity at a critical corner 
+    double critical_corner_dist_coeff;
     double critical_corner_epsilon; //!< The epsilon for penalty function of critical corners
   } obstacles; //!< Obstacle related parameters
 
@@ -256,8 +257,8 @@ public:
     
     // Robot
 
-    robot.max_vel_x = 0.4;
-    robot.max_vel_x_backwards = 0.2;
+    robot.max_vel_x = 1;
+    robot.max_vel_x_backwards = 0.5;
     robot.max_vel_y = 0.0;
     robot.max_vel_theta = 0.3;
     robot.acc_lim_x = 0.5;
@@ -290,8 +291,8 @@ public:
     obstacles.costmap_converter_plugin = "";
     obstacles.costmap_converter_spin_thread = true;
     obstacles.costmap_converter_rate = 5;
-    obstacles.critical_corner_sensitivity = 0.1;
-    obstacles.critical_corner_epsilon = 0.2;
+    obstacles.critical_corner_vel_coeff = 0.1;
+    obstacles.critical_corner_dist_coeff = 0.1;
 
     // Optimization
 
@@ -317,8 +318,8 @@ public:
     optim.weight_dynamic_obstacle_inflation = 0.1;
     optim.weight_viapoint = 1;
     optim.weight_prefer_rotdir = 50;
-    optim.weight_cc_vel = 50;
-    optim.weight_cc_dist = 50;
+    optim.weight_cc_dist = 1;
+    optim.weight_cc_vel = 1;
 
     optim.weight_adapt_factor = 2.0;
     optim.obstacle_cost_exponent = 1.0;

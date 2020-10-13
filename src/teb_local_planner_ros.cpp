@@ -166,7 +166,7 @@ void TebLocalPlannerROS::initialize(std::string name, tf::TransformListener* tf,
     custom_obst_sub_ = nh.subscribe("obstacles", 1, &TebLocalPlannerROS::customObstacleCB, this);
 
     // setup callback for critical corners
-    critical_corners_sub_ = nh.subscribe("critical_corners", 1, &TebLocalPlannerROS::criticalCornersCB, this);
+    critical_corners_sub_ = nh.subscribe("/critical_corners", 1, &TebLocalPlannerROS::criticalCornersCB, this);
 
     // setup callback for custom via-points
     via_points_sub_ = nh.subscribe("via_points", 1, &TebLocalPlannerROS::customViaPointsCB, this);

@@ -110,7 +110,7 @@ int main( int argc, char** argv )
 
   obst_vector.push_back( boost::make_shared<PointObstacle>(-3,1) );
   obst_vector.push_back( boost::make_shared<PointObstacle>(6,2) );
-  //obst_vector.push_back( boost::make_shared<PointObstacle>(10,0.1) );
+  obst_vector.push_back( boost::make_shared<CircularObstacle>(3,3,0.3) );
 
   cc_vector.push_back( boost::make_shared<PointObstacle>(1,2) );
 //  obst_vector.push_back( boost::make_shared<LineObstacle>(1,1.5,1,-1.5) ); //90 deg
@@ -133,7 +133,8 @@ int main( int argc, char** argv )
   polyobst->finalizePolygon();
   obst_vector.emplace_back(polyobst);
   */
-  
+  int marker_counter = 0; 
+
   for (unsigned int i=0; i<obst_vector.size(); ++i)
   {
     // setup callbacks for setting obstacle velocities
@@ -145,11 +146,18 @@ int main( int argc, char** argv )
     boost::shared_ptr<PointObstacle> pobst = boost::dynamic_pointer_cast<PointObstacle>(obst_vector.at(i));
     if (pobst)
     {
-      CreateInteractiveMarker(pobst->x(),pobst->y(),i, config.map_frame, "Obstacle", &marker_server, &CB_obstacle_marker);  
+      CreateInteractiveMarker(pobst->x(),pobst->y(),marker_counter, config.map_frame, "Obstacle", &marker_server, &CB_obstacle_marker);  
+      marker_counter++;
+    }
+    // Add interactive markers for all circular obstacles
+    boost::shared_ptr<CircularObstacle> pobst2 = boost::dynamic_pointer_cast<CircularObstacle>(obst_vector.at(i));
+    if (pobst2)
+    {
+      CreateInteractiveMarker(pobst2->x(),pobst2->y(),marker_counter, config.map_frame, "Obstacle", &marker_server, &CB_obstacle_marker);  
+      marker_counter++;
     }
   }
-  marker_server.applyChanges();
-
+  
   // critical corners
   for (unsigned int i=0; i<cc_vector.size(); ++i)
   {
@@ -162,7 +170,8 @@ int main( int argc, char** argv )
     boost::shared_ptr<PointObstacle> pcc = boost::dynamic_pointer_cast<PointObstacle>(cc_vector.at(i));
     if (pcc)
     {
-      CreateInteractiveMarker(pcc->x(),pcc->y(),i, config.map_frame, "Critical Corner", &marker_server, &CB_critical_corners_marker);  
+      CreateInteractiveMarker(pcc->x(),pcc->y(),marker_counter, config.map_frame, "Critical Corner", &marker_server, &CB_critical_corners_marker);  
+      marker_counter++;
     }
   }
   marker_server.applyChanges();
@@ -281,6 +290,7 @@ void CB_critical_corners_marker(const visualization_msgs::InteractiveMarkerFeedb
   std::stringstream ss(feedback->marker_name);
   unsigned int index;
   ss >> index;
+  index = index-no_fixed_obstacles; // substract the normal obstacles
   
   if (index>=no_fixed_critical_corners) 
     return;

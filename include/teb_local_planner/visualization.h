@@ -49,6 +49,7 @@
 // ros stuff
 #include <ros/publisher.h>
 #include <base_local_planner/goal_functions.h>
+#include <ros/ros.h>
 
 // boost
 #include <boost/graph/adjacency_list.hpp>

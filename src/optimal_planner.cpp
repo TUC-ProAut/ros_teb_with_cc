@@ -165,7 +165,6 @@ boost::shared_ptr<g2o::SparseOptimizer> TebOptimalPlanner::initOptimizer()
   
   optimizer->initMultiThreading(); // required for >Eigen 3.1
   
-  ROS_INFO_STREAM("Optimizer initialized!");
 
   return optimizer;
 }
@@ -200,21 +199,18 @@ bool TebOptimalPlanner::optimizeTEB(int iterations_innerloop, int iterations_out
     success = buildGraph(weight_multiplier);
     if (!success) 
     {
-        ROS_INFO_STREAM("buildGraph failed...");
         clearGraph();
         return false;
     }
     success = optimizeGraph(iterations_innerloop, false);
     if (!success) 
     {
-        ROS_INFO_STREAM("optimizeGraph failed...");
         clearGraph();
         return false;
     }
     optimized_ = true;
     
     if (compute_cost_afterwards && i==iterations_outerloop-1) // compute cost vec only in the last iteration
-      ROS_INFO_STREAM("Compute current costs...");
       computeCurrentCost(obst_cost_scale, viapoint_cost_scale, alternative_time_cost);
       
     clearGraph();
@@ -269,7 +265,6 @@ bool TebOptimalPlanner::plan(const std::vector<geometry_msgs::PoseStamped>& init
   else
     vel_goal_.first = true; // we just reactivate and use the previously set velocity (should be zero if nothing was modified)
   
-  ROS_INFO_STREAM("Trying to optimize planner...");
   // now optimize
   return optimizeTEB(cfg_->optim.no_inner_iterations, cfg_->optim.no_outer_iterations);
 }
@@ -285,7 +280,6 @@ bool TebOptimalPlanner::plan(const tf::Pose& start, const tf::Pose& goal, const 
 
 bool TebOptimalPlanner::plan(const PoseSE2& start, const PoseSE2& goal, const geometry_msgs::Twist* start_vel, bool free_goal_vel)
 {	
-  ROS_INFO_STREAM("Start planning...");
   ROS_ASSERT_MSG(initialized_, "Call initialize() first.");
   if (!teb_.isInit())
   {
@@ -356,15 +350,12 @@ bool TebOptimalPlanner::buildGraph(double weight_multiplier)
   AddEdgesPreferRotDir();
 
   AddEdgesCriticalCorners();
-
-  ROS_INFO_STREAM("Build graph!");
  
   return true;  
 }
 
 bool TebOptimalPlanner::optimizeGraph(int no_iterations,bool clear_after)
 {
-  ROS_INFO_STREAM("Start graph optimizing...");
   if (cfg_->robot.max_vel_x<0.01)
   {
     ROS_WARN("optimizeGraph(): Robot Max Velocity is smaller than 0.01m/s. Optimizing aborted...");
@@ -790,11 +781,10 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
     return; // if weight equals zero skip adding edges!
 
   int n = teb_.sizePoses();
-  Eigen::Matrix<double,1,1> information;
+  Eigen::Matrix<double,2,2> information;
   information.fill(0);
-  information(0,0) = cfg_->optim.weight_cc_dist;
-  ROS_INFO_STREAM("weight: " << cfg_->optim.weight_cc_dist);
-  //information(1,1) = cfg_->optim.weight_cc_vel;
+  information(0,0) = cfg_->optim.weight_cc_vel;
+  information(1,1) = cfg_->optim.weight_cc_dist;
 
   for (int i=0; i < n - 1; ++i)
   {
@@ -812,11 +802,11 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
       double dist = robot_model_->calculateDistance(teb_.Pose(i), cc.get());
       
       // force considering obstacle if really close to the current pose
-      //if (dist < cfg_->obstacles.min_obstacle_dist*cfg_->obstacles.obstacle_association_force_inclusion_factor)
-        //{
-            relevant_critical_corners.push_back(cc.get());
-          //  continue;
-        //}
+      if (dist < cfg_->obstacles.min_obstacle_dist*cfg_->obstacles.obstacle_association_force_inclusion_factor)
+        {
+          relevant_critical_corners.push_back(cc.get());
+          continue;
+        }
     }  
 
     for (const Obstacle* cc : relevant_critical_corners)

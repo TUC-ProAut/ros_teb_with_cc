@@ -210,6 +210,85 @@ void TebVisualization::publishObstacles(const ObstContainer& obstacles) const
     teb_marker_pub_.publish( marker );
   }
   
+  // Visualize circular obstacles
+  {
+    std::size_t idx = 0;
+    for (ObstContainer::const_iterator obst = obstacles.begin(); obst != obstacles.end(); ++obst)
+    {	
+      boost::shared_ptr<CircularObstacle> pobst = boost::dynamic_pointer_cast<CircularObstacle>(*obst);   
+      if (!pobst)
+        continue;
+      
+      // centroid marker
+      visualization_msgs::Marker marker;
+      marker.header.frame_id = cfg_->map_frame;
+      marker.header.stamp = ros::Time::now();
+      marker.ns = "PointObstacles";
+      marker.id = 0;
+      marker.type = visualization_msgs::Marker::POINTS;
+      marker.action = visualization_msgs::Marker::ADD;
+      marker.lifetime = ros::Duration(2.0);
+      if (cfg_->hcp.visualize_with_time_as_z_axis_scale < 0.001)
+      {
+        geometry_msgs::Point point;
+        point.x = pobst->x();
+        point.y = pobst->y();
+        point.z = 0;
+        marker.points.push_back(point);
+      }
+      else // Spatiotemporally point obstacles become a line
+      {
+        marker.type = visualization_msgs::Marker::LINE_LIST;
+        geometry_msgs::Point start;
+        start.x = pobst->x();
+        start.y = pobst->y();
+        start.z = 0;
+        marker.points.push_back(start);
+
+        geometry_msgs::Point end;
+        double t = 20;
+        Eigen::Vector2d pred;
+        pobst->predictCentroidConstantVelocity(t, pred);
+        end.x = pred[0];
+        end.y = pred[1];
+        end.z = cfg_->hcp.visualize_with_time_as_z_axis_scale*t;
+        marker.points.push_back(end);
+      }
+    
+      marker.scale.x = 0.1;
+      marker.scale.y = 0.1;
+      marker.color.a = 1.0;
+      marker.color.r = 1.0;
+      marker.color.g = 0.0;
+      marker.color.b = 0.0;
+
+      teb_marker_pub_.publish( marker );     
+
+      // radius marker
+      visualization_msgs::Marker marker_r;
+      marker_r.header.frame_id = cfg_->map_frame;
+      marker_r.header.stamp = ros::Time::now();
+      marker_r.ns = "CircularObstacles";
+      marker_r.id = idx;
+      marker_r.type = visualization_msgs::Marker::CYLINDER;
+      marker_r.action = visualization_msgs::Marker::ADD;
+      marker_r.lifetime = ros::Duration(2.0);
+      marker_r.pose.position.x = pobst->x();
+      marker_r.pose.position.y = pobst->y();
+    
+      marker_r.scale.x = pobst->radius()*2;
+      marker_r.scale.y = pobst->radius()*2;
+      marker_r.scale.z = 0;
+      marker_r.color.a = 0.5;
+      marker_r.color.r = 1.0;
+      marker_r.color.g = 0.0;
+      marker_r.color.b = 0.0;
+
+      teb_marker_pub_.publish( marker_r );     
+    }
+  }
+  
+
   // Visualize line obstacles
   {
     std::size_t idx = 0;
@@ -312,7 +391,7 @@ void TebVisualization::publishCriticalCorners(const ObstContainer& critical_corn
     marker.header.stamp = ros::Time::now();
     marker.ns = "CriticalCorners";
     marker.id = 0;
-    marker.type = visualization_msgs::Marker::POINTS;
+    marker.type = visualization_msgs::Marker::LINE_LIST;
     marker.action = visualization_msgs::Marker::ADD;
     marker.lifetime = ros::Duration(2.0);
     
@@ -322,40 +401,26 @@ void TebVisualization::publishCriticalCorners(const ObstContainer& critical_corn
       if (!pobst)
         continue;
 
-      if (cfg_->hcp.visualize_with_time_as_z_axis_scale < 0.001)
-      {
-        geometry_msgs::Point point;
-        point.x = pobst->x();
-        point.y = pobst->y();
-        point.z = 0;
-        marker.points.push_back(point);
-      }
-      else // Spatiotemporally point obstacles become a line
-      {
-        marker.type = visualization_msgs::Marker::LINE_LIST;
-        geometry_msgs::Point start;
-        start.x = pobst->x();
-        start.y = pobst->y();
-        start.z = 0;
-        marker.points.push_back(start);
+      geometry_msgs::Point start;
+      start.x = pobst->x();
+      start.y = pobst->y();
+      start.z = 0;
+      marker.points.push_back(start);
 
-        geometry_msgs::Point end;
-        double t = 20;
-        Eigen::Vector2d pred;
-        pobst->predictCentroidConstantVelocity(t, pred);
-        end.x = pred[0];
-        end.y = pred[1];
-        end.z = cfg_->hcp.visualize_with_time_as_z_axis_scale*t;
-        marker.points.push_back(end);
-      }
+      geometry_msgs::Point end;
+      end.x = pobst->x();
+      end.y = pobst->y();
+      end.z = 1;
+      marker.points.push_back(end);
+      
     }
     
     marker.scale.x = 0.1;
     marker.scale.y = 0.1;
     marker.color.a = 1.0;
     marker.color.r = 0.0;
-    marker.color.g = 1.0;
-    marker.color.b = 0.0;
+    marker.color.g = 0.0;
+    marker.color.b = 1.0;
 
     teb_marker_pub_.publish( marker );
   }
