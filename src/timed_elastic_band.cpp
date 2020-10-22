@@ -206,6 +206,14 @@ void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_s
   /// iterate through all TEB states and add/remove states!
   bool modified = true;
 
+  //ROS_INFO("\n   ### neue Iteration ###");
+  //for(int i=0; i < sizeTimeDiffs(); ++i) // TimeDiff connects Point(i) with Point(i+1)
+  //{
+  //    ROS_INFO_STREAM(i << ": " << TimeDiff(i));
+  //}
+  //ROS_INFO("\n");
+  
+
   for (int rep = 0; rep < 100 && modified; ++rep) // actually it should be while(), but we want to make sure to not get stuck in some oscillation, hence max 100 repitions.
   {
     modified = false;
@@ -214,19 +222,27 @@ void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_s
     {
       if(TimeDiff(i) > dt_ref + dt_hysteresis && sizeTimeDiffs()<max_samples)
       {
-        //ROS_DEBUG("teb_local_planner: autoResize() inserting new bandpoint i=%u, #TimeDiffs=%lu",i,sizeTimeDiffs());
+        if (TimeDiff(i) > 2*dt_ref) {
+            //ROS_INFO("inserting at i=%u/%lu; diff=%f",i,sizeTimeDiffs(), TimeDiff(i));
 
-        double newtime = 0.5*TimeDiff(i);
+            double newtime = 0.5*TimeDiff(i);
 
-        TimeDiff(i) = newtime;
-        insertPose(i+1, PoseSE2::average(Pose(i),Pose(i+1)) );
-        insertTimeDiff(i+1,newtime);
+            TimeDiff(i) = newtime;
+            insertPose(i+1, PoseSE2::average(Pose(i),Pose(i+1)) );
+            insertTimeDiff(i+1,newtime);
 
-        modified = true;
+            modified = true;
+        } else {
+            //ROS_INFO("correcting at i=%u/%lu; diff=%f",i,sizeTimeDiffs(), TimeDiff(i));
+            if (i < sizeTimeDiffs() - 1) {
+                timediffs().at(i+1)->dt()+= timediffs().at(i)->dt() - dt_ref;
+            }
+            timediffs().at(i)->dt() = dt_ref;
+        }
       }
       else if(TimeDiff(i) < dt_ref - dt_hysteresis && sizeTimeDiffs()>min_samples) // only remove samples if size is larger than min_samples.
       {
-        //ROS_DEBUG("teb_local_planner: autoResize() deleting bandpoint i=%u, #TimeDiffs=%lu",i,sizeTimeDiffs());
+        //ROS_INFO("deleting at i=%u/%lu; diff=%f",i,sizeTimeDiffs(), TimeDiff(i));
 
         if(i < ((int)sizeTimeDiffs()-1))
         {
