@@ -176,7 +176,7 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
     custom_obst_sub_ = nh.subscribe("obstacles", 1, &TebLocalPlannerROS::customObstacleCB, this);
 
     // setup callback for critical corners
-    critical_corners_sub_ = nh.subscribe("/critical_corners", 1, &TebLocalPlannerROS::criticalCornersCB, this);
+    critical_corners_sub_ = nh.subscribe("critical_corners", 1, &TebLocalPlannerROS::criticalCornersCB, this);
 
     // setup callback for custom via-points
     via_points_sub_ = nh.subscribe("via_points", 1, &TebLocalPlannerROS::customViaPointsCB, this);
@@ -341,6 +341,7 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
     
   // clear currently existing obstacles
   obstacles_.clear();
+  critical_corners_.clear();
   
   // Update obstacle container with costmap information or polygons provided by a costmap_converter plugin
   if (costmap_converter_)
@@ -351,7 +352,8 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   // also consider custom obstacles (must be called after other updates, since the container is not cleared)
   updateObstacleContainerWithCustomObstacles();
   
-    
+  updateCCContainerWithCriticalCorners();  
+
   // Do not allow config changes during the following optimization step
   boost::mutex::scoped_lock cfg_lock(cfg_.configMutex());
     
@@ -455,6 +457,7 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   // Now visualize everything    
   planner_->visualize();
   visualization_->publishObstacles(obstacles_);
+  visualization_->publishCriticalCorners(critical_corners_);
   visualization_->publishViaPoints(via_points_);
   visualization_->publishGlobalPlan(global_plan_);
   return mbf_msgs::ExePathResult::SUCCESS;
@@ -627,7 +630,6 @@ void TebLocalPlannerROS::updateCCContainerWithCriticalCorners()
 {
   // Add custom obstacles obtained via message
   boost::mutex::scoped_lock l(custom_cc_mutex_);
-
   if (!critical_corners_msg_.obstacles.empty())
   {
     // We only use the global header to specify the obstacle coordinate system instead of individual ones

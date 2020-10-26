@@ -68,7 +68,7 @@ namespace teb_local_planner
  * @see TebOptimalPlanner::AddEdgesObstacles, TebOptimalPlanner::EdgeInflatedObstacle
  * @remarks Do not forget to call setTebConfig() and setObstacle()
  */     
-class EdgeCriticalCorners : public BaseTebUnaryEdge<1, const Obstacle*, VertexPose>
+class EdgeCriticalCorners : public BaseTebMultiEdge<1, const Obstacle*>
 {
 public:
     
@@ -78,6 +78,7 @@ public:
   EdgeCriticalCorners() 
   {
     _measurement = NULL;
+    this->resize(3);
   }
  
   /**
