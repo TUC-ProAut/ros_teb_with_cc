@@ -224,19 +224,17 @@ void TimedElasticBand::setTimeDiffVertexFixed(int index, bool status)
 }
 
 
-void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_samples, int max_samples, bool fast_mode)
+void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_samples, int max_samples, bool fast_mode, bool dt_force_equal)
 {  
   ROS_ASSERT(sizeTimeDiffs() == 0 || sizeTimeDiffs() + 1 == sizePoses());
   /// iterate through all TEB states and add/remove states!
   bool modified = true;
 
-  //ROS_INFO("\n   ### neue Iteration ###");
-  //for(int i=0; i < sizeTimeDiffs(); ++i) // TimeDiff connects Point(i) with Point(i+1)
-  //{
-  //    ROS_INFO_STREAM(i << ": " << TimeDiff(i));
-  //}
-  //ROS_INFO("\n");
-  
+  // please remove or turn off later
+  if (dt_force_equal)
+    ROS_INFO("  autoResize with dt_force_equal == True");
+  else
+    ROS_INFO("  autoResize with dt_force_equal == False");
 
   for (int rep = 0; rep < 100 && modified; ++rep) // actually it should be while(), but we want to make sure to not get stuck in some oscillation, hence max 100 repitions.
   {
@@ -246,27 +244,42 @@ void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_s
     {
       if(TimeDiff(i) > dt_ref + dt_hysteresis && sizeTimeDiffs()<max_samples)
       {
-        if (TimeDiff(i) > 2*dt_ref) {
-            //ROS_INFO("inserting at i=%u/%lu; diff=%f",i,sizeTimeDiffs(), TimeDiff(i));
+        if (!dt_force_equal)
+        {
+          // default behaviour
+          //ROS_DEBUG("teb_local_planner: autoResize() inserting new bandpoint i=%u, #TimeDiffs=%lu",i,sizeTimeDiffs());
 
-            double newtime = 0.5*TimeDiff(i);
+          double newtime = 0.5*TimeDiff(i);
 
-            TimeDiff(i) = newtime;
-            insertPose(i+1, PoseSE2::average(Pose(i),Pose(i+1)) );
-            insertTimeDiff(i+1,newtime);
+          TimeDiff(i) = newtime;
+          insertPose(i+1, PoseSE2::average(Pose(i),Pose(i+1)) );
+          insertTimeDiff(i+1,newtime);
 
-            modified = true;
-        } else {
-            //ROS_INFO("correcting at i=%u/%lu; diff=%f",i,sizeTimeDiffs(), TimeDiff(i));
-            if (i < sizeTimeDiffs() - 1) {
-                timediffs().at(i+1)->dt()+= timediffs().at(i)->dt() - dt_ref;
-            }
-            timediffs().at(i)->dt() = dt_ref;
+          modified = true;
+        }
+        else
+        {
+          // Force the planner to have equal timediffs between poses (dt_ref +/- dt_hyteresis).
+          // (new behaviour)
+          if (TimeDiff(i) > 2*dt_ref) {
+              double newtime = 0.5*TimeDiff(i);
+
+              TimeDiff(i) = newtime;
+              insertPose(i+1, PoseSE2::average(Pose(i),Pose(i+1)) );
+              insertTimeDiff(i+1,newtime);
+
+              modified = true;
+          } else {
+              if (i < sizeTimeDiffs() - 1) {
+                  timediffs().at(i+1)->dt()+= timediffs().at(i)->dt() - dt_ref;
+              }
+              timediffs().at(i)->dt() = dt_ref;
+          }
         }
       }
       else if(TimeDiff(i) < dt_ref - dt_hysteresis && sizeTimeDiffs()>min_samples) // only remove samples if size is larger than min_samples.
       {
-        //ROS_INFO("deleting at i=%u/%lu; diff=%f",i,sizeTimeDiffs(), TimeDiff(i));
+        //ROS_DEBUG("teb_local_planner: autoResize() deleting bandpoint i=%u, #TimeDiffs=%lu",i,sizeTimeDiffs());
 
         if(i < ((int)sizeTimeDiffs()-1))
         {
