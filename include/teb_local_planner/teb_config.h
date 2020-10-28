@@ -130,8 +130,9 @@ public:
     std::string costmap_converter_plugin; //!< Define a plugin name of the costmap_converter package (costmap cells are converted to points/lines/polygons)
     bool costmap_converter_spin_thread; //!< If \c true, the costmap converter invokes its callback queue in a different thread
     int costmap_converter_rate; //!< The rate that defines how often the costmap_converter plugin processes the current costmap (the value should not be much higher than the costmap update rate)
-    double critical_corner_min_dist; //! distance within the corner is in effect (reducing the max. velocity)
-    double critical_corner_max_vel; //!< Max. allowed velocity if robot is [critical_corner_min_dist] m away. The velocity will be less if the robot gets closer to the critical point.
+    double critical_corner_dist; //!< Distance where the corner is in full effect. At the given distance the velocity is bound to critical_corner_vel. The velocity will be further reduced if the robot gets closer to the critical corner. Otherwise it will be increased.
+    double critical_corner_vel; //!< Max. allowed velocity if robot is <critical_corner_dist> m away. The velocity will be further reduced if the robot gets closer to the critical corner. Otherwise it will be increased.
+    double critical_corner_inclusion_dist; //! Distance within the critical corner is considered in the optimization process.
   } obstacles; //!< Obstacle related parameters
 
 
@@ -291,8 +292,9 @@ public:
     obstacles.costmap_converter_plugin = "";
     obstacles.costmap_converter_spin_thread = true;
     obstacles.costmap_converter_rate = 5;
-    obstacles.critical_corner_min_dist = 1;
-    obstacles.critical_corner_max_vel = 0.5;
+    obstacles.critical_corner_dist = 1;
+    obstacles.critical_corner_vel = 0.5;
+    obstacles.critical_corner_inclusion_dist = 2;
 
     // Optimization
 

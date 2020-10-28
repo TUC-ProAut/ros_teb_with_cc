@@ -102,8 +102,9 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
   nh.param("obstacle_association_cutoff_factor", obstacles.obstacle_association_cutoff_factor, obstacles.obstacle_association_cutoff_factor);
   nh.param("costmap_converter_plugin", obstacles.costmap_converter_plugin, obstacles.costmap_converter_plugin);
   nh.param("costmap_converter_spin_thread", obstacles.costmap_converter_spin_thread, obstacles.costmap_converter_spin_thread);
-  nh.param("critical_corner_min_dist",obstacles.critical_corner_min_dist, obstacles.critical_corner_min_dist);
-  nh.param("critical_corner_max_vel",obstacles.critical_corner_max_vel, obstacles.critical_corner_max_vel);
+  nh.param("critical_corner_dist",obstacles.critical_corner_dist, obstacles.critical_corner_dist);
+  nh.param("critical_corner_vel",obstacles.critical_corner_vel, obstacles.critical_corner_vel);
+  nh.param("critical_corner_inclusion_dist",obstacles.critical_corner_inclusion_dist, obstacles.critical_corner_inclusion_dist);
   
   // Optimization
   nh.param("no_inner_iterations", optim.no_inner_iterations, optim.no_inner_iterations);
@@ -219,8 +220,9 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
   obstacles.obstacle_association_cutoff_factor = cfg.obstacle_association_cutoff_factor;
   obstacles.costmap_obstacles_behind_robot_dist = cfg.costmap_obstacles_behind_robot_dist;
   obstacles.obstacle_poses_affected = cfg.obstacle_poses_affected;
-  obstacles.critical_corner_min_dist = cfg.critical_corner_min_dist;
-  obstacles.critical_corner_max_vel = cfg.critical_corner_max_vel;
+  obstacles.critical_corner_dist = cfg.critical_corner_dist;
+  obstacles.critical_corner_vel = cfg.critical_corner_vel;
+  obstacles.critical_corner_inclusion_dist = cfg.critical_corner_inclusion_dist;
 
   
   // Optimization
