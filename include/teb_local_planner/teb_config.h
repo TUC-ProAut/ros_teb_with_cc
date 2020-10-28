@@ -137,8 +137,9 @@ public:
     double obstacle_proximity_ratio_max_vel; //!< Ratio of the maximum velocities used as an upper bound when reducing the speed due to the proximity to a static obstacles
     double obstacle_proximity_lower_bound; //!< Distance to a static obstacle for which the velocity should be lower
     double obstacle_proximity_upper_bound; //!< Distance to a static obstacle for which the velocity should be higher
-    double critical_corner_min_dist; //! distance within the corner is in effect (reducing the max. velocity)
-    double critical_corner_max_vel; //!< Max. allowed velocity if robot is [critical_corner_min_dist] m away. The velocity will be less if the robot gets closer to the critical point.
+    double critical_corner_dist; //!< Distance where the corner is in full effect. At the given distance the velocity is bound to critical_corner_vel. The velocity will be further reduced if the robot gets closer to the critical corner. Otherwise it will be increased.
+    double critical_corner_vel; //!< Max. allowed velocity if robot is <critical_corner_dist> m away. The velocity will be further reduced if the robot gets closer to the critical corner. Otherwise it will be increased.
+    double critical_corner_inclusion_dist; //! Distance within the critical corner is considered in the optimization process.
   } obstacles; //!< Obstacle related parameters
 
 
@@ -309,8 +310,9 @@ public:
     obstacles.obstacle_proximity_ratio_max_vel = 1;
     obstacles.obstacle_proximity_lower_bound = 0;
     obstacles.obstacle_proximity_upper_bound = 0.5;
-    obstacles.critical_corner_min_dist = 1;
-    obstacles.critical_corner_max_vel = 0.5;
+    obstacles.critical_corner_dist = 1;
+    obstacles.critical_corner_vel = 0.5;
+    obstacles.critical_corner_inclusion_dist = 2;
 
     // Optimization
 

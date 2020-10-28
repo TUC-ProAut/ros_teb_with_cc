@@ -109,8 +109,9 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
   nh.param("obstacle_proximity_ratio_max_vel",  obstacles.obstacle_proximity_ratio_max_vel, obstacles.obstacle_proximity_ratio_max_vel);
   nh.param("obstacle_proximity_lower_bound", obstacles.obstacle_proximity_lower_bound, obstacles.obstacle_proximity_lower_bound);
   nh.param("obstacle_proximity_upper_bound", obstacles.obstacle_proximity_upper_bound, obstacles.obstacle_proximity_upper_bound);
-  nh.param("critical_corner_min_dist",obstacles.critical_corner_min_dist, obstacles.critical_corner_min_dist);
-  nh.param("critical_corner_max_vel",obstacles.critical_corner_max_vel, obstacles.critical_corner_max_vel);
+  nh.param("critical_corner_dist",obstacles.critical_corner_dist, obstacles.critical_corner_dist);
+  nh.param("critical_corner_vel",obstacles.critical_corner_vel, obstacles.critical_corner_vel);
+  nh.param("critical_corner_inclusion_dist",obstacles.critical_corner_inclusion_dist, obstacles.critical_corner_inclusion_dist);
   
   // Optimization
   nh.param("no_inner_iterations", optim.no_inner_iterations, optim.no_inner_iterations);
@@ -237,8 +238,9 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
   obstacles.obstacle_proximity_ratio_max_vel = cfg.obstacle_proximity_ratio_max_vel;
   obstacles.obstacle_proximity_lower_bound = cfg.obstacle_proximity_lower_bound;
   obstacles.obstacle_proximity_upper_bound = cfg.obstacle_proximity_upper_bound;
-  obstacles.critical_corner_min_dist = cfg.critical_corner_min_dist;
-  obstacles.critical_corner_max_vel = cfg.critical_corner_max_vel;
+  obstacles.critical_corner_dist = cfg.critical_corner_dist;
+  obstacles.critical_corner_vel = cfg.critical_corner_vel;
+  obstacles.critical_corner_inclusion_dist = cfg.critical_corner_inclusion_dist;
 
   // Optimization
   optim.no_inner_iterations = cfg.no_inner_iterations;

@@ -116,8 +116,8 @@ public:
     
     // check rel. distance (<1: closer then min_dist; ==1: at min_dist; >1: further away)
     double scale = 0;
-    if (cfg_->obstacles.critical_corner_min_dist > 0)
-        scale = dist1 / cfg_->obstacles.critical_corner_min_dist;
+    if (cfg_->obstacles.critical_corner_dist > 0)
+        scale = dist1 / cfg_->obstacles.critical_corner_dist;
 
     // allow quadratic increase of velocity, if far away
     // (otherwise: within dist_min max. velocity is linear decreased)
@@ -126,7 +126,7 @@ public:
         //scale = (1 + std::pow(scale, 2)) / 2;
     
     // calculate max. allowed velocity
-    double max_vel = cfg_->obstacles.critical_corner_max_vel * scale;
+    double max_vel = cfg_->obstacles.critical_corner_vel * scale;
 
     _error[0] = penaltyBoundFromAbove(vel, max_vel, cfg_->optim.penalty_epsilon);
 
