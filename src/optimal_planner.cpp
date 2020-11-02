@@ -810,13 +810,22 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
 
     for (const Obstacle* cc : relevant_critical_corners)
     {
-      EdgeCriticalCorners* cc_edge = new EdgeCriticalCorners;
-      cc_edge->setVertex(0,teb_.PoseVertex(i));
-      cc_edge->setVertex(1,teb_.PoseVertex(i+1));
-      cc_edge->setVertex(2,teb_.TimeDiffVertex(i));
-      cc_edge->setInformation(information);
-      cc_edge->setParameters(*cfg_, robot_model_.get(), cc);
-      optimizer_->addEdge(cc_edge);
+      
+      // add critical corner only if the cc is not behind the first TEB pose
+      Eigen::Vector2d dir_pose = teb_.Pose(1).position() - teb_.Pose(0).position(); 
+      Eigen::Vector2d dir_cc = cc->getCentroid() - teb_.Pose(0).position();
+      double sim = (dir_pose.dot(dir_cc))/(dir_pose.norm()+dir_cc.norm()); // compute cosine similarity between these vectors
+
+      if(sim>0)
+      {
+        EdgeCriticalCorners* cc_edge = new EdgeCriticalCorners;
+        cc_edge->setVertex(0,teb_.PoseVertex(i));
+        cc_edge->setVertex(1,teb_.PoseVertex(i+1));
+        cc_edge->setVertex(2,teb_.TimeDiffVertex(i));
+        cc_edge->setInformation(information);
+        cc_edge->setParameters(*cfg_, robot_model_.get(), cc);
+        optimizer_->addEdge(cc_edge);
+      }
     } 
 
   }
