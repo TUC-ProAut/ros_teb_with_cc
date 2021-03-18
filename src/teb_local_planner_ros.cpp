@@ -636,14 +636,10 @@ void TebLocalPlannerROS::updateCCContainerWithCriticalCorners()
     Eigen::Affine3d obstacle_to_map_eig;
     try 
     {
-      tf::StampedTransform obstacle_to_map;
-      tf_->waitForTransform(global_frame_, ros::Time(0),
-            critical_corners_msg_.header.frame_id, ros::Time(0),
-            critical_corners_msg_.header.frame_id, ros::Duration(0.5));
-      tf_->lookupTransform(global_frame_, ros::Time(0),
-          critical_corners_msg_.header.frame_id, ros::Time(0), 
-          critical_corners_msg_.header.frame_id, obstacle_to_map);
-      tf::transformTFToEigen(obstacle_to_map, obstacle_to_map_eig);
+      geometry_msgs::TransformStamped obstacle_to_map =  tf_->lookupTransform(global_frame_, ros::Time(0),
+        critical_corners_msg_.header.frame_id, ros::Time(0),
+        critical_corners_msg_.header.frame_id, ros::Duration(cfg_.robot.transform_tolerance));
+      obstacle_to_map_eig = tf2::transformToEigen(obstacle_to_map);
     }
     catch (tf::TransformException ex)
     {

@@ -70,7 +70,7 @@ void CB_publishCycle(const ros::TimerEvent& e);
 void CB_reconfigure(TebLocalPlannerReconfigureConfig& reconfig, uint32_t level);
 void CB_customObstacle(const costmap_converter::ObstacleArrayMsg::ConstPtr& obst_msg);
 void CB_criticalCorners(const costmap_converter::ObstacleArrayMsg::ConstPtr& cc_msg);
-void CreateInteractiveMarker(const double& init_x, const double& init_y, unsigned int id, std::string frame, std::string name, interactive_markers::InteractiveMarkerServer* marker_server, interactive_markers::InteractiveMarkerServer::FeedbackCallback feedback_cb);
+void CreateInteractiveMarker(const double& init_x, const double& init_y, unsigned int id, std::string frame, interactive_markers::InteractiveMarkerServer* marker_server, interactive_markers::InteractiveMarkerServer::FeedbackCallback feedback_cb);
 void CB_obstacle_marker(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback);
 void CB_critical_corners_marker(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback);
 void CB_clicked_points(const geometry_msgs::PointStampedConstPtr& point_msg);
