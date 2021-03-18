@@ -49,6 +49,7 @@
 #include <teb_local_planner/g2o_types/edge_dynamic_obstacle.h>
 #include <teb_local_planner/g2o_types/edge_via_point.h>
 #include <teb_local_planner/g2o_types/edge_prefer_rotdir.h>
+#include <teb_local_planner/g2o_types/edge_critical_corners.h>
 
 #include <memory>
 #include <limits>
@@ -59,14 +60,14 @@ namespace teb_local_planner
 
 // ============== Implementation ===================
 
-TebOptimalPlanner::TebOptimalPlanner() : cfg_(NULL), obstacles_(NULL), via_points_(NULL), cost_(HUGE_VAL), prefer_rotdir_(RotType::none),
+TebOptimalPlanner::TebOptimalPlanner() : cfg_(NULL), obstacles_(NULL), critical_corners_(NULL), via_points_(NULL), cost_(HUGE_VAL), prefer_rotdir_(RotType::none),
                                          robot_model_(new PointRobotFootprint()), initialized_(false), optimized_(false)
 {    
 }
   
-TebOptimalPlanner::TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
+TebOptimalPlanner::TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles, ObstContainer* critical_corners, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
 {    
-  initialize(cfg, obstacles, robot_model, visual, via_points);
+  initialize(cfg, obstacles, critical_corners, robot_model, visual, via_points);
 }
 
 TebOptimalPlanner::~TebOptimalPlanner()
@@ -79,13 +80,19 @@ TebOptimalPlanner::~TebOptimalPlanner()
   //g2o::HyperGraphActionLibrary::destroy();
 }
 
-void TebOptimalPlanner::initialize(const TebConfig& cfg, ObstContainer* obstacles, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
+void TebOptimalPlanner::updateRobotModel(RobotFootprintModelPtr robot_model)
+{
+  robot_model_ = robot_model;
+}
+
+void TebOptimalPlanner::initialize(const TebConfig& cfg, ObstContainer* obstacles, ObstContainer* critical_corners, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
 {    
   // init optimizer (set solver and block ordering settings)
   optimizer_ = initOptimizer();
   
   cfg_ = &cfg;
   obstacles_ = obstacles;
+  critical_corners_ = critical_corners;
   robot_model_ = robot_model;
   via_points_ = via_points;
   cost_ = HUGE_VAL;
@@ -152,6 +159,7 @@ void TebOptimalPlanner::registerG2OTypes()
   factory->registerType("EDGE_DYNAMIC_OBSTACLE", new g2o::HyperGraphElementCreator<EdgeDynamicObstacle>);
   factory->registerType("EDGE_VIA_POINT", new g2o::HyperGraphElementCreator<EdgeViaPoint>);
   factory->registerType("EDGE_PREFER_ROTDIR", new g2o::HyperGraphElementCreator<EdgePreferRotDir>);
+  factory->registerType("EDGE_CRITICAL_CORNERS", new g2o::HyperGraphElementCreator<EdgeCriticalCorners>);
   return;
 }
 
@@ -202,7 +210,7 @@ bool TebOptimalPlanner::optimizeTEB(int iterations_innerloop, int iterations_out
     if (cfg_->trajectory.teb_autosize)
     {
       //teb_.autoResize(cfg_->trajectory.dt_ref, cfg_->trajectory.dt_hysteresis, cfg_->trajectory.min_samples, cfg_->trajectory.max_samples);
-      teb_.autoResize(cfg_->trajectory.dt_ref, cfg_->trajectory.dt_hysteresis, cfg_->trajectory.min_samples, cfg_->trajectory.max_samples, fast_mode);
+      teb_.autoResize(cfg_->trajectory.dt_ref, cfg_->trajectory.dt_hysteresis, cfg_->trajectory.min_samples, cfg_->trajectory.max_samples, fast_mode, cfg_->trajectory.dt_force_equal);
 
     }
 
@@ -328,6 +336,8 @@ bool TebOptimalPlanner::buildGraph(double weight_multiplier)
     ROS_WARN("Cannot build graph, because it is not empty. Call graphClear()!");
     return false;
   }
+
+  optimizer_->setComputeBatchStatistics(cfg_->recovery.divergence_detection_enable);
   
   // add TEB vertices
   AddTEBVertices();
@@ -357,6 +367,8 @@ bool TebOptimalPlanner::buildGraph(double weight_multiplier)
     AddEdgesKinematicsCarlike(); // we have a carlike robot since the turning radius is bounded from below.
 
   AddEdgesPreferRotDir();
+
+  AddEdgesCriticalCorners();
 
   if (cfg_->optim.weight_velocity_obstacle_ratio > 0)
     AddEdgesVelocityObstacleRatio();
@@ -405,8 +417,13 @@ void TebOptimalPlanner::clearGraph()
   // clear optimizer states
   if (optimizer_)
   {
-    //optimizer.edges().clear(); // optimizer.clear deletes edges!!! Therefore do not run optimizer.edges().clear()
-    optimizer_->vertices().clear();  // neccessary, because optimizer->clear deletes pointer-targets (therefore it deletes TEB states!)
+    // we will delete all edges but keep the vertices.
+    // before doing so, we will delete the link from the vertices to the edges.
+    auto& vertices = optimizer_->vertices();
+    for(auto& v : vertices)
+      v.second->edges().clear();
+
+    optimizer_->vertices().clear();  // necessary, because optimizer->clear deletes pointer-targets (therefore it deletes TEB states!)
     optimizer_->clear();
   }
 }
@@ -762,6 +779,66 @@ void TebOptimalPlanner::AddEdgesVelocity()
   }
 }
 
+
+void TebOptimalPlanner::AddEdgesCriticalCorners()
+{
+
+  if ( cfg_->optim.weight_cc==0 )
+    return; // if weight equals zero skip adding edges!
+
+  int n = teb_.sizePoses();
+  Eigen::Matrix<double,1,1> information;
+  information.fill(0);
+  information(0,0) = cfg_->optim.weight_cc;
+
+  for (int i=0; i < n - 1; ++i)
+  {
+    double right_min_dist = std::numeric_limits<double>::max();
+    
+    std::vector<Obstacle*> relevant_critical_corners;
+    
+    const Eigen::Vector2d pose_orient = teb_.Pose(i).orientationUnitVec();
+    
+    // iterate obstacles
+    for (const ObstaclePtr& cc : *critical_corners_)
+    {
+    
+      // calculate distance to robot model
+      double dist = robot_model_->calculateDistance(teb_.Pose(i), cc.get());
+      
+      // force considering obstacle if really close to the current pose
+      if (dist < cfg_->obstacles.critical_corner_inclusion_dist)
+        {
+          relevant_critical_corners.push_back(cc.get());
+          continue;
+        }
+    }  
+
+    for (const Obstacle* cc : relevant_critical_corners)
+    {
+      
+      // add critical corner only if the cc is not behind the first TEB pose
+      Eigen::Vector2d dir_pose = teb_.Pose(1).position() - teb_.Pose(0).position(); 
+      Eigen::Vector2d dir_cc = cc->getCentroid() - teb_.Pose(0).position();
+      double sim = (dir_pose.dot(dir_cc))/(dir_pose.norm()+dir_cc.norm()); // compute cosine similarity between these vectors
+
+      if(sim>0)
+      {
+        EdgeCriticalCorners* cc_edge = new EdgeCriticalCorners;
+        cc_edge->setVertex(0,teb_.PoseVertex(i));
+        cc_edge->setVertex(1,teb_.PoseVertex(i+1));
+        cc_edge->setVertex(2,teb_.TimeDiffVertex(i));
+        cc_edge->setInformation(information);
+        cc_edge->setParameters(*cfg_, robot_model_.get(), cc);
+        optimizer_->addEdge(cc_edge);
+      }
+    } 
+
+  }
+  
+}
+
+
 void TebOptimalPlanner::AddEdgesAcceleration()
 {
   if (cfg_->optim.weight_acc_lim_x==0  && cfg_->optim.weight_acc_lim_theta==0) 
@@ -1012,6 +1089,24 @@ void TebOptimalPlanner::AddEdgesVelocityObstacleRatio()
       optimizer_->addEdge(edge);
     }
   }
+}
+
+bool TebOptimalPlanner::hasDiverged() const
+{
+  // Early returns if divergence detection is not active
+  if (!cfg_->recovery.divergence_detection_enable)
+    return false;
+
+  auto stats_vector = optimizer_->batchStatistics();
+
+  // No statistics yet
+  if (stats_vector.empty())
+    return false;
+
+  // Grab the statistics of the final iteration
+  const auto last_iter_stats = stats_vector.back();
+
+  return last_iter_stats.chi2 > cfg_->recovery.divergence_detection_max_chi_squared;
 }
 
 void TebOptimalPlanner::computeCurrentCost(double obst_cost_scale, double viapoint_cost_scale, bool alternative_time_cost)

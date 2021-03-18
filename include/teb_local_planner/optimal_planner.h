@@ -114,7 +114,7 @@ public:
    * @param visual Shared pointer to the TebVisualization class (optional)
    * @param via_points Container storing via-points (optional)
    */
-  TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
+  TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles = NULL, ObstContainer* critical_corners = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
                     TebVisualizationPtr visual = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
   
   /**
@@ -130,11 +130,14 @@ public:
     * @param visual Shared pointer to the TebVisualization class (optional)
     * @param via_points Container storing via-points (optional)
     */
-  void initialize(const TebConfig& cfg, ObstContainer* obstacles = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
+  void initialize(const TebConfig& cfg, ObstContainer* obstacles = NULL, ObstContainer* critical_corners = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
                   TebVisualizationPtr visual = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
   
+  /**
+    * @param robot_model Shared pointer to the robot shape model used for optimization (optional)
+    */
+  void updateRobotModel(RobotFootprintModelPtr robot_model );
   
-
   /** @name Plan a trajectory  */
   //@{
   
@@ -278,6 +281,14 @@ public:
   void setObstVector(ObstContainer* obst_vector) {obstacles_ = obst_vector;}
   
   /**
+   * @brief Assign a new set of critical corneres
+   * @param cc_vector pointer to a critical corners container
+   * @remarks This method overrids the obstacle container optinally assigned in the constructor.
+   */
+  void setCritCornVector(ObstContainer* cc_vector) {critical_corners_ = cc_vector;}
+
+
+  /**
    * @brief Access the internal obstacle container.
    * @return Const reference to the obstacle container
    */
@@ -388,6 +399,11 @@ public:
    *         otherwise \c false (also if no optimization has been called before).
    */
   bool isOptimized() const {return optimized_;};
+
+  /**
+   * @brief Returns true if the planner has diverged.
+   */
+  bool hasDiverged() const override;
 	
   /**
    * @brief Compute the cost vector of a given optimization problen (hyper-graph must exist).
@@ -660,6 +676,15 @@ protected:
    */
   void AddEdgesVelocityObstacleRatio();
   
+  /**
+   * @brief Add all edges (local cost functions) related to keeping a distance from critical corners
+   * @warning do not combine with AddEdgesInflatedObstacles
+   * @see EdgeCriticalCorners
+   * @see buildGraph
+   * @see optimizeGraph
+   */
+  void AddEdgesCriticalCorners();
+  
   //@}
   
   
@@ -673,6 +698,7 @@ protected:
   // external objects (store weak pointers)
   const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
   ObstContainer* obstacles_; //!< Store obstacles that are relevant for planning
+  ObstContainer* critical_corners_; //!< Store Critical corners that are relevant for planning
   const ViaPointContainer* via_points_; //!< Store via points for planning
   std::vector<ObstContainer> obstacles_per_vertex_; //!< Store the obstacles associated with the n-1 initial vertices
   

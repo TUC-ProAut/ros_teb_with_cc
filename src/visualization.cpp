@@ -334,6 +334,54 @@ void TebVisualization::publishObstacles(const ObstContainer& obstacles) const
 }
 
 
+void TebVisualization::publishCriticalCorners(const ObstContainer& critical_corners) const
+{
+  if ( critical_corners.empty() || printErrorWhenNotInitialized() )
+    return;
+  
+  // Visualize point critical_corners
+  {
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = cfg_->map_frame;
+    marker.header.stamp = ros::Time::now();
+    marker.ns = "CriticalCorners";
+    marker.id = 0;
+    marker.type = visualization_msgs::Marker::LINE_LIST;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.lifetime = ros::Duration(2.0);
+    
+    for (ObstContainer::const_iterator obst = critical_corners.begin(); obst != critical_corners.end(); ++obst)
+    {
+      boost::shared_ptr<PointObstacle> pobst = boost::dynamic_pointer_cast<PointObstacle>(*obst);      
+      if (!pobst)
+        continue;
+
+      geometry_msgs::Point start;
+      start.x = pobst->x();
+      start.y = pobst->y();
+      start.z = 0;
+      marker.points.push_back(start);
+
+      geometry_msgs::Point end;
+      end.x = pobst->x();
+      end.y = pobst->y();
+      end.z = 1;
+      marker.points.push_back(end);
+      
+    }
+    
+    marker.scale.x = 0.1;
+    marker.scale.y = 0.1;
+    marker.color.a = 1.0;
+    marker.color.r = 0.0;
+    marker.color.g = 0.0;
+    marker.color.b = 1.0;
+
+    teb_marker_pub_.publish( marker );
+  }
+  
+}
+
 void TebVisualization::publishViaPoints(const std::vector< Eigen::Vector2d, Eigen::aligned_allocator<Eigen::Vector2d> >& via_points, const std::string& ns) const
 {
   if ( via_points.empty() || printErrorWhenNotInitialized() )

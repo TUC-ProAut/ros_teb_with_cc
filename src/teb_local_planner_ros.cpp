@@ -81,6 +81,10 @@ TebLocalPlannerROS::~TebLocalPlannerROS()
 void TebLocalPlannerROS::reconfigureCB(TebLocalPlannerReconfigureConfig& config, uint32_t level)
 {
   cfg_.reconfigure(config);
+  ros::NodeHandle nh("~/" + name_);
+  // create robot footprint/contour model for optimization
+  RobotFootprintModelPtr robot_model = getRobotFootprintFromParamServer(nh);
+  planner_->updateRobotModel(robot_model);
 }
 
 void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
@@ -88,6 +92,7 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
   // check if the plugin is already initialized
   if(!initialized_)
   {	
+    name_ = name;
     // create Node Handle with name of plugin (as used in move_base for loading)
     ros::NodeHandle nh("~/" + name);
 	        
@@ -106,12 +111,12 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
     // create the planner instance
     if (cfg_.hcp.enable_homotopy_class_planning)
     {
-      planner_ = PlannerInterfacePtr(new HomotopyClassPlanner(cfg_, &obstacles_, robot_model, visualization_, &via_points_));
+      planner_ = PlannerInterfacePtr(new HomotopyClassPlanner(cfg_, &obstacles_, &critical_corners_, robot_model, visualization_, &via_points_));
       ROS_INFO("Parallel planning in distinctive topologies enabled.");
     }
     else
     {
-      planner_ = PlannerInterfacePtr(new TebOptimalPlanner(cfg_, &obstacles_, robot_model, visualization_, &via_points_));
+      planner_ = PlannerInterfacePtr(new TebOptimalPlanner(cfg_, &obstacles_, &critical_corners_, robot_model, visualization_, &via_points_));
       ROS_INFO("Parallel planning in distinctive topologies disabled.");
     }
     
@@ -169,6 +174,9 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
         
     // setup callback for custom obstacles
     custom_obst_sub_ = nh.subscribe("obstacles", 1, &TebLocalPlannerROS::customObstacleCB, this);
+
+    // setup callback for critical corners
+    critical_corners_sub_ = nh.subscribe("critical_corners", 1, &TebLocalPlannerROS::criticalCornersCB, this);
 
     // setup callback for custom via-points
     via_points_sub_ = nh.subscribe("via_points", 1, &TebLocalPlannerROS::customViaPointsCB, this);
@@ -276,6 +284,9 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   if (!custom_via_points_active_)
     updateViaPointsContainer(transformed_plan, cfg_.trajectory.global_plan_viapoint_sep);
 
+  nav_msgs::Odometry base_odom;
+  odom_helper_.getOdom(base_odom);
+
   // check if global goal is reached
   geometry_msgs::PoseStamped global_goal;
   tf2::doTransform(global_plan_.back(), global_goal, tf_plan_to_global);
@@ -284,13 +295,14 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   double delta_orient = g2o::normalize_theta( tf2::getYaw(global_goal.pose.orientation) - robot_pose_.theta() );
   if(fabs(std::sqrt(dx*dx+dy*dy)) < cfg_.goal_tolerance.xy_goal_tolerance
     && fabs(delta_orient) < cfg_.goal_tolerance.yaw_goal_tolerance
-    && (!cfg_.goal_tolerance.complete_global_plan || via_points_.size() == 0))
+    && (!cfg_.goal_tolerance.complete_global_plan || via_points_.size() == 0)
+    && (base_local_planner::stopped(base_odom, cfg_.goal_tolerance.theta_stopped_vel, cfg_.goal_tolerance.trans_stopped_vel)
+        || cfg_.goal_tolerance.free_goal_vel))
   {
     goal_reached_ = true;
     return mbf_msgs::ExePathResult::SUCCESS;
   }
-  
-  
+
   // check if we should enter any backup mode and apply settings
   configureBackupModes(transformed_plan, goal_idx);
   
@@ -329,6 +341,7 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
     
   // clear currently existing obstacles
   obstacles_.clear();
+  critical_corners_.clear();
   
   // Update obstacle container with costmap information or polygons provided by a costmap_converter plugin
   if (costmap_converter_)
@@ -339,7 +352,8 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   // also consider custom obstacles (must be called after other updates, since the container is not cleared)
   updateObstacleContainerWithCustomObstacles();
   
-    
+  updateCCContainerWithCriticalCorners();  
+
   // Do not allow config changes during the following optimization step
   boost::mutex::scoped_lock cfg_lock(cfg_.configMutex());
     
@@ -355,6 +369,21 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
     time_last_infeasible_plan_ = ros::Time::now();
     last_cmd_ = cmd_vel.twist;
     message = "teb_local_planner was not able to obtain a local plan";
+    return mbf_msgs::ExePathResult::NO_VALID_CMD;
+  }
+
+  // Check for divergence
+  if (planner_->hasDiverged())
+  {
+    cmd_vel.twist.linear.x = cmd_vel.twist.linear.y = cmd_vel.twist.angular.z = 0;
+
+    // Reset everything to start again with the initialization of new trajectories.
+    planner_->clearPlanner();
+    ROS_WARN_THROTTLE(1.0, "TebLocalPlannerROS: the trajectory has diverged. Resetting planner...");
+
+    ++no_infeasible_plans_; // increase number of infeasible solutions in a row
+    time_last_infeasible_plan_ = ros::Time::now();
+    last_cmd_ = cmd_vel.twist;
     return mbf_msgs::ExePathResult::NO_VALID_CMD;
   }
          
@@ -428,6 +457,7 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   // Now visualize everything    
   planner_->visualize();
   visualization_->publishObstacles(obstacles_);
+  visualization_->publishCriticalCorners(critical_corners_);
   visualization_->publishViaPoints(via_points_);
   visualization_->publishGlobalPlan(global_plan_);
   return mbf_msgs::ExePathResult::SUCCESS;
@@ -596,6 +626,68 @@ void TebLocalPlannerROS::updateObstacleContainerWithCustomObstacles()
   }
 }
 
+void TebLocalPlannerROS::updateCCContainerWithCriticalCorners()
+{
+  // Add custom obstacles obtained via message
+  boost::mutex::scoped_lock l(custom_cc_mutex_);
+  if (!critical_corners_msg_.obstacles.empty())
+  {
+    // We only use the global header to specify the obstacle coordinate system instead of individual ones
+    Eigen::Affine3d obstacle_to_map_eig;
+    try 
+    {
+      tf::StampedTransform obstacle_to_map;
+      tf_->waitForTransform(global_frame_, ros::Time(0),
+            critical_corners_msg_.header.frame_id, ros::Time(0),
+            critical_corners_msg_.header.frame_id, ros::Duration(0.5));
+      tf_->lookupTransform(global_frame_, ros::Time(0),
+          critical_corners_msg_.header.frame_id, ros::Time(0), 
+          critical_corners_msg_.header.frame_id, obstacle_to_map);
+      tf::transformTFToEigen(obstacle_to_map, obstacle_to_map_eig);
+    }
+    catch (tf::TransformException ex)
+    {
+      ROS_ERROR("%s",ex.what());
+      obstacle_to_map_eig.setIdentity();
+    }
+    
+    for (size_t i=0; i<critical_corners_msg_.obstacles.size(); ++i)
+    {
+      if (critical_corners_msg_.obstacles.at(i).polygon.points.size() == 1 && critical_corners_msg_.obstacles.at(i).radius > 0 ) // circle
+      {
+        // circle is not supported as critical corner
+        ROS_WARN("Invalid critical corner received. Circular critical corner is not supported.");
+      }
+      else if (critical_corners_msg_.obstacles.at(i).polygon.points.size() == 1 ) // point
+      {
+        Eigen::Vector3d pos( critical_corners_msg_.obstacles.at(i).polygon.points.front().x,
+                             critical_corners_msg_.obstacles.at(i).polygon.points.front().y,
+                             critical_corners_msg_.obstacles.at(i).polygon.points.front().z );
+        critical_corners_.push_back(ObstaclePtr(new PointObstacle( (obstacle_to_map_eig * pos).head(2) )));
+      }
+      else if (critical_corners_msg_.obstacles.at(i).polygon.points.size() == 2 ) // line
+      {
+        // line is not supported as critial corner 
+        ROS_WARN("Invalid critical corner received. Line critical corner is not supported.");
+      }
+      else if (critical_corners_msg_.obstacles.at(i).polygon.points.empty())
+      {
+        ROS_WARN("Invalid custom obstacle received. List of polygon vertices is empty. Skipping...");
+        continue;
+      }
+      else // polygon
+      {
+        // polygon is not supported as critial corner 
+        ROS_WARN("Invalid critical corner received. Polygon critical corner is not supported.");
+      }
+
+      // Set velocity, if obstacle is moving
+      if(!critical_corners_.empty())
+        critical_corners_.back()->setCentroidVelocity(critical_corners_msg_.obstacles[i].velocities, critical_corners_msg_.obstacles[i].orientation);
+    }
+  }
+}
+
 void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msgs::PoseStamped>& transformed_plan, double min_separation)
 {
   via_points_.clear();
@@ -709,6 +801,7 @@ bool TebLocalPlannerROS::transformGlobalPlan(const tf2_ros::Buffer& tf, const st
     double sq_dist = 1e10;
     
     //we need to loop to a point on the plan that is within a certain distance of the robot
+    bool robot_reached = false;
     for(int j=0; j < (int)global_plan.size(); ++j)
     {
       double x_diff = robot_pose.pose.position.x - global_plan[j].pose.position.x;
@@ -717,10 +810,15 @@ bool TebLocalPlannerROS::transformGlobalPlan(const tf2_ros::Buffer& tf, const st
       if (new_sq_dist > sq_dist_threshold)
         break;  // force stop if we have reached the costmap border
 
+      if (robot_reached && new_sq_dist > sq_dist)
+        break;
+
       if (new_sq_dist < sq_dist) // find closest distance
       {
         sq_dist = new_sq_dist;
         i = j;
+        if (sq_dist < 0.05)      // 2.5 cm to the robot; take the immediate local minima; if it's not the global
+          robot_reached = true;  // minima, probably means that there's a loop in the path, and so we prefer this
       }
     }
     
@@ -976,11 +1074,18 @@ void TebLocalPlannerROS::configureBackupModes(std::vector<geometry_msgs::PoseSta
 
 }
      
-     
 void TebLocalPlannerROS::customObstacleCB(const costmap_converter::ObstacleArrayMsg::ConstPtr& obst_msg)
 {
   boost::mutex::scoped_lock l(custom_obst_mutex_);
   custom_obstacle_msg_ = *obst_msg;  
+}
+
+
+
+void TebLocalPlannerROS::criticalCornersCB(const costmap_converter::ObstacleArrayMsg::ConstPtr& cc_msg)
+{
+  boost::mutex::scoped_lock l(custom_cc_mutex_);
+  critical_corners_msg_ = *cc_msg;  
 }
 
 void TebLocalPlannerROS::customViaPointsCB(const nav_msgs::Path::ConstPtr& via_points_msg)

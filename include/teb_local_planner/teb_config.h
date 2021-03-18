@@ -69,6 +69,7 @@ public:
   struct Trajectory
   {
     double teb_autosize; //!< Enable automatic resizing of the trajectory w.r.t to the temporal resolution (recommended)
+    double dt_force_equal; //!< Force the planner to have equal timediffs between poses (dt_ref +/- dt_hyteresis). This is only in effect if teb_autosize is set.
     double dt_ref; //!< Desired temporal resolution of the trajectory (should be in the magniture of the underlying control rate)
     double dt_hysteresis; //!< Hysteresis for automatic resizing depending on the current temporal resolution (dt): usually 10% of dt_ref
     int min_samples; //!< Minimum number of samples (should be always greater than 2)
@@ -113,6 +114,8 @@ public:
     double yaw_goal_tolerance; //!< Allowed final orientation error
     double xy_goal_tolerance; //!< Allowed final euclidean distance to the goal position
     bool free_goal_vel; //!< Allow the robot's velocity to be nonzero (usally max_vel) for planning purposes
+    double trans_stopped_vel; //!< Below what maximum velocity we consider the robot to be stopped in translation
+    double theta_stopped_vel; //!< Below what maximum rotation velocity we consider the robot to be stopped in rotation
     bool complete_global_plan; // true prevents the robot from ending the path early when it cross the end goal
   } goal_tolerance; //!< Goal tolerance related parameters
 
@@ -135,6 +138,9 @@ public:
     double obstacle_proximity_ratio_max_vel; //!< Ratio of the maximum velocities used as an upper bound when reducing the speed due to the proximity to a static obstacles
     double obstacle_proximity_lower_bound; //!< Distance to a static obstacle for which the velocity should be lower
     double obstacle_proximity_upper_bound; //!< Distance to a static obstacle for which the velocity should be higher
+    double critical_corner_dist; //!< Distance where the corner is in full effect. At the given distance the velocity is bound to critical_corner_vel. The velocity will be further reduced if the robot gets closer to the critical corner. Otherwise it will be increased.
+    double critical_corner_vel; //!< Max. allowed velocity if robot is <critical_corner_dist> m away. The velocity will be further reduced if the robot gets closer to the critical corner. Otherwise it will be increased.
+    double critical_corner_inclusion_dist; //! Distance within the critical corner is considered in the optimization process.
   } obstacles; //!< Obstacle related parameters
 
 
@@ -167,7 +173,7 @@ public:
     double weight_velocity_obstacle_ratio; //!< Optimization weight for satisfying a maximum allowed velocity with respect to the distance to a static obstacle
     double weight_viapoint; //!< Optimization weight for minimizing the distance to via-points
     double weight_prefer_rotdir; //!< Optimization weight for preferring a specific turning direction (-> currently only activated if an oscillation is detected, see 'oscillation_recovery'
-
+    double weight_cc; //!< Optimization weight for max. velocity at critical corners
     double weight_adapt_factor; //!< Some special weights (currently 'weight_obstacle') are repeatedly scaled by this factor in each outer TEB iteration (weight_new = weight_old*factor); Increasing weights iteratively instead of setting a huge value a-priori leads to better numerical conditions of the underlying optimization problem.
     double obstacle_cost_exponent; //!< Exponent for nonlinear obstacle cost (cost = linear_cost * obstacle_cost_exponent). Set to 1 to disable nonlinear cost (default)
   } optim; //!< Optimization related parameters
@@ -217,6 +223,8 @@ public:
     double oscillation_omega_eps; //!< Threshold for the average normalized angular velocity: if oscillation_v_eps and oscillation_omega_eps are not exceeded both, a possible oscillation is detected
     double oscillation_recovery_min_duration; //!< Minumum duration [sec] for which the recovery mode is activated after an oscillation is detected.
     double oscillation_filter_duration; //!< Filter length/duration [sec] for the detection of oscillations
+    bool divergence_detection_enable; //!< True to enable divergence detection.
+    int divergence_detection_max_chi_squared; //!< Maximum acceptable Mahalanobis distance above which it is assumed that the optimization diverged.
   } recovery; //!< Parameters related to recovery and backup strategies
 
 
@@ -242,6 +250,7 @@ public:
     // Trajectory
 
     trajectory.teb_autosize = true;
+    trajectory.dt_force_equal = false;
     trajectory.dt_ref = 0.3;
     trajectory.dt_hysteresis = 0.1;
     trajectory.min_samples = 3;
@@ -281,6 +290,8 @@ public:
     goal_tolerance.xy_goal_tolerance = 0.2;
     goal_tolerance.yaw_goal_tolerance = 0.2;
     goal_tolerance.free_goal_vel = false;
+    goal_tolerance.trans_stopped_vel = 0.1;
+    goal_tolerance.theta_stopped_vel = 0.1;
     goal_tolerance.complete_global_plan = true;
 
     // Obstacles
@@ -301,6 +312,9 @@ public:
     obstacles.obstacle_proximity_ratio_max_vel = 1;
     obstacles.obstacle_proximity_lower_bound = 0;
     obstacles.obstacle_proximity_upper_bound = 0.5;
+    obstacles.critical_corner_dist = 1;
+    obstacles.critical_corner_vel = 0.5;
+    obstacles.critical_corner_inclusion_dist = 2;
 
     // Optimization
 
@@ -327,6 +341,7 @@ public:
     optim.weight_velocity_obstacle_ratio = 0;
     optim.weight_viapoint = 1;
     optim.weight_prefer_rotdir = 50;
+    optim.weight_cc = 1;
 
     optim.weight_adapt_factor = 2.0;
     optim.obstacle_cost_exponent = 1.0;

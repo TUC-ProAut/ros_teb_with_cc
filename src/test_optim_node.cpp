@@ -52,6 +52,7 @@ using namespace teb_local_planner; // it is ok here to import everything for tes
 PlannerInterfacePtr planner;
 TebVisualizationPtr visual;
 std::vector<ObstaclePtr> obst_vector;
+std::vector<ObstaclePtr> cc_vector;
 ViaPointContainer via_points;
 TebConfig config;
 boost::shared_ptr< dynamic_reconfigure::Server<TebLocalPlannerReconfigureConfig> > dynamic_recfg;
@@ -59,15 +60,19 @@ ros::Subscriber custom_obst_sub;
 ros::Subscriber via_points_sub;
 ros::Subscriber clicked_points_sub;
 std::vector<ros::Subscriber> obst_vel_subs;
+std::vector<ros::Subscriber> critical_corners_subs;
 unsigned int no_fixed_obstacles;
+unsigned int no_fixed_critical_corners;
 
 // =========== Function declarations =============
 void CB_mainCycle(const ros::TimerEvent& e);
 void CB_publishCycle(const ros::TimerEvent& e);
 void CB_reconfigure(TebLocalPlannerReconfigureConfig& reconfig, uint32_t level);
 void CB_customObstacle(const costmap_converter::ObstacleArrayMsg::ConstPtr& obst_msg);
-void CreateInteractiveMarker(const double& init_x, const double& init_y, unsigned int id, std::string frame, interactive_markers::InteractiveMarkerServer* marker_server, interactive_markers::InteractiveMarkerServer::FeedbackCallback feedback_cb);
+void CB_criticalCorners(const costmap_converter::ObstacleArrayMsg::ConstPtr& cc_msg);
+void CreateInteractiveMarker(const double& init_x, const double& init_y, unsigned int id, std::string frame, std::string name, interactive_markers::InteractiveMarkerServer* marker_server, interactive_markers::InteractiveMarkerServer::FeedbackCallback feedback_cb);
 void CB_obstacle_marker(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback);
+void CB_critical_corners_marker(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback);
 void CB_clicked_points(const geometry_msgs::PointStampedConstPtr& point_msg);
 void CB_via_points(const nav_msgs::Path::ConstPtr& via_points_msg);
 void CB_setObstacleVelocity(const geometry_msgs::TwistConstPtr& twist_msg, const unsigned int id);
@@ -105,7 +110,10 @@ int main( int argc, char** argv )
 
   obst_vector.push_back( boost::make_shared<PointObstacle>(-3,1) );
   obst_vector.push_back( boost::make_shared<PointObstacle>(6,2) );
-  obst_vector.push_back( boost::make_shared<PointObstacle>(0,0.1) );
+  //obst_vector.push_back( boost::make_shared<PointObstacle>(10,0.1) );
+
+  cc_vector.push_back( boost::make_shared<PointObstacle>(1,1) );
+  cc_vector.push_back( boost::make_shared<PointObstacle>(1,-1) );
 //  obst_vector.push_back( boost::make_shared<LineObstacle>(1,1.5,1,-1.5) ); //90 deg
 //  obst_vector.push_back( boost::make_shared<LineObstacle>(1,0,-1,0) ); //180 deg
 //  obst_vector.push_back( boost::make_shared<PointObstacle>(-1.5,-0.5) );
@@ -142,6 +150,23 @@ int main( int argc, char** argv )
     }
   }
   marker_server.applyChanges();
+
+  // critical corners
+  for (unsigned int i=0; i<cc_vector.size(); ++i)
+  {
+    // setup callbacks for setting obstacle velocities
+    std::string topic = "/test_optim_node/critical_corners_" + std::to_string(i) + "/cmd_vel";
+    critical_corners_subs.push_back(n.subscribe<geometry_msgs::Twist>(topic, 1, boost::bind(&CB_setObstacleVelocity, _1, i)));
+
+    //CreateInteractiveMarker(obst_vector.at(i)[0],obst_vector.at(i)[1],i,&marker_server, &CB_obstacle_marker);  
+    // Add interactive markers for all point obstacles
+    boost::shared_ptr<PointObstacle> pcc = boost::dynamic_pointer_cast<PointObstacle>(cc_vector.at(i));
+    if (pcc)
+    {
+      CreateInteractiveMarker(pcc->x(),pcc->y(),i, config.map_frame, &marker_server, &CB_critical_corners_marker);  
+    }
+  }
+  marker_server.applyChanges();
   
   // Setup visualization
   visual = TebVisualizationPtr(new TebVisualization(n, config));
@@ -151,12 +176,15 @@ int main( int argc, char** argv )
   
   // Setup planner (homotopy class planning or just the local teb planner)
   if (config.hcp.enable_homotopy_class_planning)
-    planner = PlannerInterfacePtr(new HomotopyClassPlanner(config, &obst_vector, robot_model, visual, &via_points));
+    planner = PlannerInterfacePtr(new HomotopyClassPlanner(config, &obst_vector, &cc_vector, robot_model, visual, &via_points));
   else
-    planner = PlannerInterfacePtr(new TebOptimalPlanner(config, &obst_vector, robot_model, visual, &via_points));
+    planner = PlannerInterfacePtr(new TebOptimalPlanner(config, &obst_vector, &cc_vector, robot_model, visual, &via_points));
   
 
   no_fixed_obstacles = obst_vector.size();
+  no_fixed_critical_corners = cc_vector.size();
+
+
   ros::spin();
 
   return 0;
@@ -173,6 +201,7 @@ void CB_publishCycle(const ros::TimerEvent& e)
 {
   planner->visualize();
   visual->publishObstacles(obst_vector);
+  visual->publishCriticalCorners(cc_vector);
   visual->publishViaPoints(via_points);
 }
 
@@ -247,6 +276,19 @@ void CB_obstacle_marker(const visualization_msgs::InteractiveMarkerFeedbackConst
   pobst->position() = Eigen::Vector2d(feedback->pose.position.x,feedback->pose.position.y);	  
 }
 
+void CB_critical_corners_marker(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback)
+{
+  std::stringstream ss(feedback->marker_name);
+  unsigned int index;
+  ss >> index;
+  
+  if (index>=no_fixed_critical_corners) 
+    return;
+  PointObstacle* pcc = static_cast<PointObstacle*>(cc_vector.at(index).get());
+  pcc->position() = Eigen::Vector2d(feedback->pose.position.x,feedback->pose.position.y);	  
+
+}
+
 void CB_customObstacle(const costmap_converter::ObstacleArrayMsg::ConstPtr& obst_msg)
 {
   // resize such that the vector contains only the fixed obstacles specified inside the main function
@@ -268,6 +310,11 @@ void CB_customObstacle(const costmap_converter::ObstacleArrayMsg::ConstPtr& obst
                                                             obst_msg->obstacles.at(i).polygon.points.front().y,
                                                             obst_msg->obstacles.at(i).radius )));
       }
+    }
+    else if (obst_msg->obstacles.at(i).polygon.points.empty())
+    {
+      ROS_WARN("Invalid custom obstacle received. List of polygon vertices is empty. Skipping...");
+      continue;
     }
     else
     {
