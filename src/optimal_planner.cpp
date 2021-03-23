@@ -793,8 +793,6 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
 
   for (int i=0; i < n - 1; ++i)
   {
-    double right_min_dist = std::numeric_limits<double>::max();
-    
     std::vector<Obstacle*> relevant_critical_corners;
     
     const Eigen::Vector2d pose_orient = teb_.Pose(i).orientationUnitVec();
@@ -804,7 +802,9 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
     {
     
       // calculate distance to robot model
-      double dist = robot_model_->calculateDistance(teb_.Pose(i), cc.get());
+      double dist_l = robot_model_->calculateDistance(teb_.Pose(i  ), cc.get());
+      double dist_r = robot_model_->calculateDistance(teb_.Pose(i+1), cc.get());
+      double dist = std::min(dist_l, dist_r);
       
       // force considering obstacle if really close to the current pose
       if (dist < cfg_->obstacles.critical_corner_inclusion_dist)
@@ -817,10 +817,16 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
     for (const Obstacle* cc : relevant_critical_corners)
     {
       
-      // add critical corner only if the cc is not behind the first TEB pose
-      Eigen::Vector2d dir_pose = teb_.Pose(1).position() - teb_.Pose(0).position(); 
-      Eigen::Vector2d dir_cc = cc->getCentroid() - teb_.Pose(0).position();
-      double sim = (dir_pose.dot(dir_cc))/(dir_pose.norm()+dir_cc.norm()); // compute cosine similarity between these vectors
+      // add critical corner only if the cc is not current pose
+      double sim = 1;
+      if (cfg_->obstacles.critical_corner_check_direction)
+      {
+          Eigen::Vector2d dir_pose = teb_.Pose(i+1).position() - teb_.Pose(i).position();
+          Eigen::Vector2d dir_cc = cc->getCentroid() - teb_.Pose(i).position();
+          double sim = dir_pose.dot(dir_cc);
+            //double sim = dir_pose.dot(dir_cc)/(dir_pose.norm()*dir_cc.norm());
+            // compute cosine similarity between these vectors
+        }
 
       if(sim>0)
       {

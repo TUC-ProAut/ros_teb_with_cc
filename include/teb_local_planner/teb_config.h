@@ -141,6 +141,7 @@ public:
     double critical_corner_dist; //!< Distance where the corner is in full effect. At the given distance the velocity is bound to critical_corner_vel. The velocity will be further reduced if the robot gets closer to the critical corner. Otherwise it will be increased.
     double critical_corner_vel; //!< Max. allowed velocity if robot is <critical_corner_dist> m away. The velocity will be further reduced if the robot gets closer to the critical corner. Otherwise it will be increased.
     double critical_corner_inclusion_dist; //! Distance within the critical corner is considered in the optimization process.
+    double critical_corner_check_direction; //! Flag to select if rel. orientation is considered when selecting poses.
   } obstacles; //!< Obstacle related parameters
 
 
@@ -315,6 +316,7 @@ public:
     obstacles.critical_corner_dist = 1;
     obstacles.critical_corner_vel = 0.5;
     obstacles.critical_corner_inclusion_dist = 2;
+    obstacles.critical_corner_check_direction = false;
 
     // Optimization
 

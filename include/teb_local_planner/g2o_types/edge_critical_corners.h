@@ -32,7 +32,7 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * Notes:
  * The following class is derived from a class defined by the
  * g2o-framework. g2o is licensed under the terms of the BSD License.
@@ -59,7 +59,7 @@ namespace teb_local_planner
 /**
  * @class EdgeCriticalCorners
  * @brief Edge defining the cost function for keeping a minimum distance from obstacles.
- * 
+ *
  * The edge depends on a single vertex \f$ \mathbf{s}_i \f$ and minimizes: \n
  * \f$ \min \textrm{penaltyBelow}( dist2point ) \cdot weight \f$. \n
  * \e dist2point denotes the minimum distance to the point obstacle. \n
@@ -67,23 +67,23 @@ namespace teb_local_planner
  * \e penaltyBelow denotes the penalty function, see penaltyBoundFromBelow() \n
  * @see TebOptimalPlanner::AddEdgesObstacles, TebOptimalPlanner::EdgeInflatedObstacle
  * @remarks Do not forget to call setTebConfig() and setObstacle()
- */     
+ */
 class EdgeCriticalCorners : public BaseTebMultiEdge<1, const Obstacle*>
 {
 public:
-    
+
   /**
    * @brief Construct edge.
-   */    
-  EdgeCriticalCorners() 
+   */
+  EdgeCriticalCorners()
   {
     _measurement = NULL;
     this->resize(3);
   }
- 
+
   /**
    * @brief Actual cost function
-   */    
+   */
   void computeError()
   {
     ROS_ASSERT_MSG(cfg_ && _measurement && robot_model_, "You must call setTebConfig(), setObstacle() and setRobotModel() on EdgeCriticalCorners()");
@@ -96,7 +96,7 @@ public:
 
     // compute velocity
     const Eigen::Vector2d deltaS = conf2->estimate().position() - conf1->estimate().position();
-    
+
     double dist = deltaS.norm();
     const double angle_diff = g2o::normalize_theta(conf2->theta() - conf1->theta());
     if (cfg_->trajectory.exact_arc_length && angle_diff != 0)
@@ -104,7 +104,7 @@ public:
         double radius =  dist/(2*sin(angle_diff/2));
         dist = fabs( angle_diff * radius ); // actual arg length!
     }
-    double vel = dist / deltaT->estimate();  
+    double vel = dist / deltaT->estimate();
 
     // Original obstacle cost.
     //_error[0] = penaltyBoundCC(dist1, vel, cfg_->obstacles.critical_corner_vel_coeff, cfg_->optim.penalty_epsilon);
@@ -113,18 +113,18 @@ public:
 
     //_error[0] = std::pow(penaltyBoundFromAbove(vel, dist1*cfg_->obstacles.critical_corner_vel_coeff, cfg_->optim.penalty_epsilon),2);
     //_error[1] = std::pow(penaltyBoundFromBelow(dist1, vel*cfg_->obstacles.critical_corner_dist_coeff, cfg_->optim.penalty_epsilon),2);
-    
+
     // check rel. distance (<1: closer then min_dist; ==1: at min_dist; >1: further away)
     double scale = 0;
     if (cfg_->obstacles.critical_corner_dist > 0)
-        scale = dist1 / cfg_->obstacles.critical_corner_dist;
+        scale = std::min(dist1, dist2) / cfg_->obstacles.critical_corner_dist;
 
     // allow quadratic increase of velocity, if far away
     // (otherwise: within dist_min max. velocity is linear decreased)
     if (scale > 1)
         scale = std::pow(scale, 2);
         //scale = (1 + std::pow(scale, 2)) / 2;
-    
+
     // calculate max. allowed velocity
     double max_vel = cfg_->obstacles.critical_corner_vel * scale;
 
@@ -134,47 +134,47 @@ public:
   }
 
   /**
-   * @brief Set pointer to associated obstacle for the underlying cost function 
+   * @brief Set pointer to associated obstacle for the underlying cost function
    * @param obstacle 2D position vector containing the position of the obstacle
-   */ 
+   */
   void setObstacle(const Obstacle* obstacle)
   {
     _measurement = obstacle;
   }
-    
+
   /**
-   * @brief Set pointer to the robot model 
+   * @brief Set pointer to the robot model
    * @param robot_model Robot model required for distance calculation
-   */ 
+   */
   void setRobotModel(const BaseRobotFootprintModel* robot_model)
   {
     robot_model_ = robot_model;
   }
-    
+
   /**
    * @brief Set all parameters at once
    * @param cfg TebConfig class
    * @param robot_model Robot model required for distance calculation
    * @param obstacle 2D position vector containing the position of the obstacle
-   */ 
+   */
   void setParameters(const TebConfig& cfg, const BaseRobotFootprintModel* robot_model, const Obstacle* obstacle)
   {
     cfg_ = &cfg;
     robot_model_ = robot_model;
     _measurement = obstacle;
   }
-  
+
 protected:
 
   const BaseRobotFootprintModel* robot_model_; //!< Store pointer to robot_model
-  
-public: 	
+
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 };
-  
 
-    
+
+
 
 } // end namespace
 
