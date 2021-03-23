@@ -112,6 +112,7 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
   nh.param("critical_corner_dist",obstacles.critical_corner_dist, obstacles.critical_corner_dist);
   nh.param("critical_corner_vel",obstacles.critical_corner_vel, obstacles.critical_corner_vel);
   nh.param("critical_corner_inclusion_dist",obstacles.critical_corner_inclusion_dist, obstacles.critical_corner_inclusion_dist);
+  nh.param("critical_corner_check_direction",obstacles.critical_corner_check_direction, obstacles.critical_corner_check_direction);
   
   // Optimization
   nh.param("no_inner_iterations", optim.no_inner_iterations, optim.no_inner_iterations);
@@ -241,6 +242,7 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
   obstacles.critical_corner_dist = cfg.critical_corner_dist;
   obstacles.critical_corner_vel = cfg.critical_corner_vel;
   obstacles.critical_corner_inclusion_dist = cfg.critical_corner_inclusion_dist;
+  obstacles.critical_corner_check_direction = cfg.critical_corner_check_direction;
 
   // Optimization
   optim.no_inner_iterations = cfg.no_inner_iterations;
