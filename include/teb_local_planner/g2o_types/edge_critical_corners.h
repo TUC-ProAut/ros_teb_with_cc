@@ -117,7 +117,7 @@ public:
     // check rel. distance (<1: closer then min_dist; ==1: at min_dist; >1: further away)
     double scale = 0;
     if (cfg_->obstacles.critical_corner_dist > 0)
-        scale = dist1 / cfg_->obstacles.critical_corner_dist;
+        scale = std::min(dist1, dist2) / cfg_->obstacles.critical_corner_dist;
 
     // allow quadratic increase of velocity, if far away
     // (otherwise: within dist_min max. velocity is linear decreased)
