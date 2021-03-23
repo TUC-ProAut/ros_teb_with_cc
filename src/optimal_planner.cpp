@@ -802,7 +802,9 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
     {
     
       // calculate distance to robot model
-      double dist = robot_model_->calculateDistance(teb_.Pose(i), cc.get());
+      double dist_l = robot_model_->calculateDistance(teb_.Pose(i  ), cc.get());
+      double dist_r = robot_model_->calculateDistance(teb_.Pose(i+1), cc.get());
+      double dist = std::min(dist_l, dist_r);
       
       // force considering obstacle if really close to the current pose
       if (dist < cfg_->obstacles.critical_corner_inclusion_dist)
