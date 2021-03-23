@@ -793,8 +793,6 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
 
   for (int i=0; i < n - 1; ++i)
   {
-    double right_min_dist = std::numeric_limits<double>::max();
-    
     std::vector<Obstacle*> relevant_critical_corners;
     
     const Eigen::Vector2d pose_orient = teb_.Pose(i).orientationUnitVec();
@@ -820,7 +818,9 @@ void TebOptimalPlanner::AddEdgesCriticalCorners()
       // add critical corner only if the cc is not behind the first TEB pose
       Eigen::Vector2d dir_pose = teb_.Pose(1).position() - teb_.Pose(0).position(); 
       Eigen::Vector2d dir_cc = cc->getCentroid() - teb_.Pose(0).position();
-      double sim = (dir_pose.dot(dir_cc))/(dir_pose.norm()+dir_cc.norm()); // compute cosine similarity between these vectors
+      double sim = dir_pose.dot(dir_cc);
+        //double sim = dir_pose.dot(dir_cc)/(dir_pose.norm()*dir_cc.norm());
+        // compute cosine similarity between these vectors
 
       if(sim>0)
       {
