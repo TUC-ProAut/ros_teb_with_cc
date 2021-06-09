@@ -224,17 +224,11 @@ void TimedElasticBand::setTimeDiffVertexFixed(int index, bool status)
 }
 
 
-void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_samples, int max_samples, bool fast_mode, bool dt_force_equal)
+void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_samples, int max_samples, bool fast_mode)
 {  
   ROS_ASSERT(sizeTimeDiffs() == 0 || sizeTimeDiffs() + 1 == sizePoses());
   /// iterate through all TEB states and add/remove states!
   bool modified = true;
-
-  // please remove or turn off later
-  if (dt_force_equal)
-    ROS_INFO("  autoResize with dt_force_equal == True");
-  else
-    ROS_INFO("  autoResize with dt_force_equal == False");
 
   for (int rep = 0; rep < 100 && modified; ++rep) // actually it should be while(), but we want to make sure to not get stuck in some oscillation, hence max 100 repitions.
   {
@@ -244,24 +238,10 @@ void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_s
     {
       if(TimeDiff(i) > dt_ref + dt_hysteresis && sizeTimeDiffs()<max_samples)
       {
-        if (!dt_force_equal)
-        {
-          // default behaviour
-          //ROS_DEBUG("teb_local_planner: autoResize() inserting new bandpoint i=%u, #TimeDiffs=%lu",i,sizeTimeDiffs());
-
-          double newtime = 0.5*TimeDiff(i);
-
-          TimeDiff(i) = newtime;
-          insertPose(i+1, PoseSE2::average(Pose(i),Pose(i+1)) );
-          insertTimeDiff(i+1,newtime);
-
-          modified = true;
-        }
-        else
-        {
           // Force the planner to have equal timediffs between poses (dt_ref +/- dt_hyteresis).
           // (new behaviour)
-          if (TimeDiff(i) > 2*dt_ref) {
+          if (TimeDiff(i) > 2*dt_ref) 
+          {
               double newtime = 0.5*TimeDiff(i);
 
               TimeDiff(i) = newtime;
@@ -270,13 +250,15 @@ void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_s
 
               i--; // check the updated pose diff again
               modified = true;
-          } else {
-              if (i < sizeTimeDiffs() - 1) {
+          } 
+          else 
+          {
+              if (i < sizeTimeDiffs() - 1) 
+              {
                   timediffs().at(i+1)->dt()+= timediffs().at(i)->dt() - dt_ref;
               }
               timediffs().at(i)->dt() = dt_ref;
           }
-        }
       }
       else if(TimeDiff(i) < dt_ref - dt_hysteresis && sizeTimeDiffs()>min_samples) // only remove samples if size is larger than min_samples.
       {
@@ -287,10 +269,7 @@ void TimedElasticBand::autoResize(double dt_ref, double dt_hysteresis, int min_s
           TimeDiff(i+1) = TimeDiff(i+1) + TimeDiff(i);
           deleteTimeDiff(i);
           deletePose(i+1);
-          
-          if (dt_force_equal) { // (new behaviour)
-            i--; // check the updated pose diff again
-          }
+          i--; // check the updated pose diff again
         }
         else
         { // last motion should be adjusted, shift time to the interval before
